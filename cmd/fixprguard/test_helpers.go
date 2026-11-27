@@ -15,6 +15,7 @@ import (
 	"github.com/isseis/yt2column/internal/cmdrunner"
 	"github.com/isseis/yt2column/internal/cmdrunner/testutil"
 	"github.com/isseis/yt2column/internal/fixprguard"
+	"github.com/isseis/yt2column/internal/fixprguard/fixprguardtest"
 )
 
 const (
@@ -42,13 +43,14 @@ const (
 )
 
 // testRepo is a work tree on branch feature with one commit, pushed to a
-// local bare repository as origin. The test's current directory is the work
-// tree, and HOME and XDG_CONFIG_HOME point at an empty directory, so the
-// user's git configuration (commit signing, hooks) cannot reach the test.
-// Tests that use it cannot run in parallel.
+// local bare repository as origin. Every git the test starts gets
+// fixprguardtest.Env(Home, dir), where Home is an empty directory, so the
+// user's git configuration (commit signing, hooks) cannot reach the test. The
+// process's working directory is not changed.
 type testRepo struct {
-	t   *testing.T
-	Dir string
+	t    *testing.T
+	Dir  string
+	Home string
 }
 
 func newTestRepo(t *testing.T) *testRepo {
@@ -58,13 +60,10 @@ func newTestRepo(t *testing.T) *testRepo {
 	if err := os.MkdirAll(home, 0o700); err != nil {
 		t.Fatalf("create home: %v", err)
 	}
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
-	r := &testRepo{t: t, Dir: filepath.Join(root, "work")}
+	r := &testRepo{t: t, Dir: filepath.Join(root, "work"), Home: home}
 	remote := filepath.Join(root, "remote.git")
 	r.gitIn(root, "init", "-q", "--bare", "--template=", remote)
 	r.gitIn(root, "init", "-q", "--template=", "-b", testBranch, r.Dir)
-	t.Chdir(r.Dir)
 	r.Git("config", "user.name", "Test")
 	r.Git("config", "user.email", "test@example.com")
 	r.Git("config", "commit.gpgSign", "false")
@@ -103,7 +102,7 @@ func (r *testRepo) gitIn(dir string, args ...string) string {
 	r.t.Helper()
 	cmd := exec.Command("git", args...) //nolint:gosec // test setup runs git with fixed arguments
 	cmd.Dir = dir
-	cmd.Env = cmdrunner.GitEnv(os.Environ())
+	cmd.Env = fixprguardtest.Env(r.Home, dir)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		r.t.Fatalf("git %v: %v: %s", args, err, out)
@@ -133,21 +132,22 @@ func mustWorktreeDir(t *testing.T, dir string) fixprguard.WorktreeDir {
 	return wd
 }
 
-// realGit runs git for real in dir with the tool's environment.
-func realGit(dir string) cmdrunner.Runner {
-	return cmdrunner.NewOS(cmdrunner.Options{Dir: dir, Env: cmdrunner.GitEnv(os.Environ())})
+// realGit runs git for real in dir with fixprguardtest.Env(home, dir). A test
+// with no repository passes an empty directory of its own as home.
+func realGit(dir, home string) cmdrunner.Runner {
+	return cmdrunner.NewOS(cmdrunner.Options{Dir: dir, Env: fixprguardtest.Env(home, dir)})
 }
 
 // realGitList runs git for real in dir as osEnv's runner for the listing of
 // ignored files does: standard error output fails it.
-func realGitList(dir string) cmdrunner.Runner {
-	return cmdrunner.NewOS(cmdrunner.Options{Dir: dir, Env: cmdrunner.GitEnv(os.Environ()), StderrIsFailure: true})
+func realGitList(dir, home string) cmdrunner.Runner {
+	return cmdrunner.NewOS(cmdrunner.Options{Dir: dir, Env: fixprguardtest.Env(home, dir), StderrIsFailure: true})
 }
 
 // Baseline takes a baseline of the repository as begin would.
 func (r *testRepo) Baseline() fixprguard.Baseline {
 	r.t.Helper()
-	base, err := fixprguard.NewWorktree(mustWorktreeDir(r.t, r.Dir), realGit(r.Dir), realGitList(r.Dir), nil).Baseline(r.t.Context())
+	base, err := fixprguard.NewWorktree(mustWorktreeDir(r.t, r.Dir), realGit(r.Dir, r.Home), realGitList(r.Dir, r.Home), nil).Baseline(r.t.Context())
 	if err != nil {
 		r.t.Fatalf("Baseline: %v", err)
 	}
@@ -157,7 +157,7 @@ func (r *testRepo) Baseline() fixprguard.Baseline {
 // Begin takes a baseline and writes the begin record file, as begin does.
 func (r *testRepo) Begin() fixprguard.Baseline {
 	r.t.Helper()
-	base, err := fixprguard.NewWorktree(mustWorktreeDir(r.t, r.Dir), realGit(r.Dir), realGitList(r.Dir), nil).Begin(r.t.Context())
+	base, err := fixprguard.NewWorktree(mustWorktreeDir(r.t, r.Dir), realGit(r.Dir, r.Home), realGitList(r.Dir, r.Home), nil).Begin(r.t.Context())
 	if err != nil {
 		r.t.Fatalf("Begin: %v", err)
 	}
@@ -176,7 +176,7 @@ func (r *testRepo) Ignore(lines ...string) {
 // print it.
 func (r *testRepo) JudgedSet(base fixprguard.Baseline) fixprguard.JudgedSetID {
 	r.t.Helper()
-	inspection, err := fixprguard.NewWorktree(mustWorktreeDir(r.t, r.Dir), realGit(r.Dir), realGitList(r.Dir), nil).Inspect(r.t.Context(), base, nil)
+	inspection, err := fixprguard.NewWorktree(mustWorktreeDir(r.t, r.Dir), realGit(r.Dir, r.Home), realGitList(r.Dir, r.Home), nil).Inspect(r.t.Context(), base, nil)
 	if err != nil {
 		r.t.Fatalf("Inspect: %v", err)
 	}
@@ -202,14 +202,14 @@ type testRun struct {
 	Stderr *bytes.Buffer
 }
 
-func newTestRun(t *testing.T, dir string, gh []cmdrunnertestutil.Step, makeSteps ...cmdrunnertestutil.Step) *testRun {
+func newTestRun(t *testing.T, dir, home string, gh []cmdrunnertestutil.Step, makeSteps ...cmdrunnertestutil.Step) *testRun {
 	t.Helper()
 	r := &testRun{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}}
 	r.env = env{
 		dir:       mustWorktreeDir(t, dir),
 		gh:        cmdrunnertestutil.New(t, gh...),
-		git:       realGit(dir),
-		gitList:   realGitList(dir),
+		git:       realGit(dir, home),
+		gitList:   realGitList(dir, home),
 		make:      cmdrunnertestutil.New(t, makeSteps...),
 		stdout:    r.Stdout,
 		stderr:    r.Stderr,
@@ -438,7 +438,7 @@ func threadBodies(t *testing.T, threads ...ghThread) string {
 func fingerprintOf(t *testing.T, th ghThread, lookups ...cmdrunnertestutil.Step) string {
 	t.Helper()
 	steps := append([]cmdrunnertestutil.Step{headStep(sameRepositoryHead), repoStep(), graphqlStep(threadsPage(t, false, th))}, lookups...)
-	r := newTestRun(t, t.TempDir(), steps)
+	r := newTestRun(t, t.TempDir(), t.TempDir(), steps)
 	if code := r.Run(t, args(cmdList, "--reviewer", testReviewer, testPR)...); code != exitContinue {
 		t.Fatalf("list exit %d: %s", code, r.Stderr)
 	}

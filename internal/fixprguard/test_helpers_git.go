@@ -12,6 +12,7 @@ import (
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
 	"github.com/isseis/yt2column/internal/cmdrunner/testutil"
+	"github.com/isseis/yt2column/internal/fixprguard/fixprguardtest"
 )
 
 const (
@@ -112,10 +113,11 @@ func gitCalls(calls []string) int {
 }
 
 // testRepo is a work tree on branch feature, pushed to a local bare
-// repository as origin. The test's current directory is the work tree, and
-// HOME and XDG_CONFIG_HOME point at an empty directory, so the user's git
-// configuration (commit signing, hooks) cannot reach the test. The repository
-// configuration turns signing off, and only hooks a test writes exist.
+// repository as origin. Every git the test starts, and every runner built for
+// it, gets fixprguardtest.Env(Home, dir), so the user's git configuration
+// (commit signing, hooks) cannot reach the test. The repository configuration
+// turns signing off, and only hooks a test writes exist. The process's working
+// directory is not changed, so tests that use it can run in parallel.
 type testRepo struct {
 	t      *testing.T
 	Dir    string
@@ -123,9 +125,7 @@ type testRepo struct {
 	Home   string
 }
 
-// newTestRepo creates the repository with one commit holding testFile and
-// changes the current directory into it. Tests that use it cannot run in
-// parallel.
+// newTestRepo creates the repository with one commit holding testFile.
 func newTestRepo(t *testing.T) *testRepo {
 	t.Helper()
 	root := t.TempDir()
@@ -133,11 +133,8 @@ func newTestRepo(t *testing.T) *testRepo {
 	if err := os.MkdirAll(r.Home, 0o700); err != nil {
 		t.Fatalf("create home: %v", err)
 	}
-	t.Setenv("HOME", r.Home)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(r.Home, ".config"))
 	r.gitIn(root, "init", "-q", "--bare", "--template=", r.Remote)
 	r.gitIn(root, "init", "-q", "--template=", "-b", testBranch, r.Dir)
-	t.Chdir(r.Dir)
 	r.pinIgnoreConfig()
 	r.Git("config", "user.name", "Test")
 	r.Git("config", "user.email", "test@example.com")
@@ -179,7 +176,7 @@ func (r *testRepo) gitIn(dir string, args ...string) string {
 	r.t.Helper()
 	cmd := exec.Command(gitCommand, args...) //nolint:gosec // test setup runs git with fixed arguments
 	cmd.Dir = dir
-	cmd.Env = cmdrunner.GitEnv(os.Environ())
+	cmd.Env = fixprguardtest.Env(r.Home, dir)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		r.t.Fatalf("git %v: %v: %s", args, err, out)
@@ -193,7 +190,7 @@ func (r *testRepo) ConfigList() string {
 	r.t.Helper()
 	cmd := exec.Command(gitCommand, append(cmdrunner.GitHardening(), configListArgs...)...) //nolint:gosec // test setup runs git with fixed arguments
 	cmd.Dir = r.Dir
-	cmd.Env = cmdrunner.GitEnv(os.Environ())
+	cmd.Env = fixprguardtest.Env(r.Home, r.Dir)
 	out, err := cmd.Output()
 	if err != nil {
 		r.t.Fatalf("git config --list: %v", err)
@@ -263,14 +260,17 @@ func mustWorktreeDir(t *testing.T, dir string) WorktreeDir {
 }
 
 // newTestWorktree returns a Worktree targeting dir whose git runs for real
-// with cmdrunner.GitEnv and Options.Dir set to dir, and whose other commands
-// run through a fake expecting exactly steps.
-func newTestWorktree(t *testing.T, dir string, steps ...cmdrunnertestutil.Step) (*Worktree, *gitRouter) {
+// with fixprguardtest.Env(home, dir) and Options.Dir set to dir, and whose
+// other commands run through a fake expecting exactly steps. One dir makes
+// both the WorktreeDir and the runners' Dir, so they cannot disagree. A test
+// with no repository passes an empty directory of its own as home.
+func newTestWorktree(t *testing.T, dir, home string, steps ...cmdrunnertestutil.Step) (*Worktree, *gitRouter) {
 	t.Helper()
 	wd := mustWorktreeDir(t, dir)
+	env := fixprguardtest.Env(home, dir)
 	router := &gitRouter{
-		real: cmdrunner.NewOS(cmdrunner.Options{Dir: dir, Env: cmdrunner.GitEnv(os.Environ())}),
-		List: cmdrunner.NewOS(cmdrunner.Options{Dir: dir, Env: cmdrunner.GitEnv(os.Environ()), StderrIsFailure: true}),
+		real: cmdrunner.NewOS(cmdrunner.Options{Dir: dir, Env: env}),
+		List: cmdrunner.NewOS(cmdrunner.Options{Dir: dir, Env: env, StderrIsFailure: true}),
 		fake: cmdrunnertestutil.New(t, steps...),
 	}
 	return NewWorktree(wd, router, router.ListRunner(), router), router
@@ -316,9 +316,9 @@ func buildCheckSteps() []cmdrunnertestutil.Step {
 }
 
 // mustBaseline takes a baseline of dir with a Worktree that runs no other command.
-func mustBaseline(t *testing.T, dir string) Baseline {
+func mustBaseline(t *testing.T, dir, home string) Baseline {
 	t.Helper()
-	w, _ := newTestWorktree(t, dir)
+	w, _ := newTestWorktree(t, dir, home)
 	base, err := w.Begin(t.Context())
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
@@ -332,9 +332,9 @@ func threadAt(path string) []ThreadPath {
 }
 
 // mustInspect inspects dir with threads on testFile and returns the judged set.
-func mustInspect(t *testing.T, dir string, base Baseline) Inspection {
+func mustInspect(t *testing.T, dir, home string, base Baseline) Inspection {
 	t.Helper()
-	w, _ := newTestWorktree(t, dir)
+	w, _ := newTestWorktree(t, dir, home)
 	inspection, err := w.Inspect(t.Context(), base, threadAt(testFile))
 	if err != nil {
 		t.Fatalf("Inspect: %v", err)

@@ -923,7 +923,7 @@ func TestReviewStateNonPRCommitIgnored(t *testing.T) {
 func TestReviewStateObserved(t *testing.T) {
 	const runURL = "https://github.com/isseis/yt2column/runs/"
 	read := func(name string) string {
-		data, err := os.ReadFile(filepath.Join("testdata", "review_state", name))
+		data, err := os.ReadFile(filepath.Join(isolation.PackageDir, "testdata", "review_state", name))
 		if err != nil {
 			t.Fatalf("read %s: %v", name, err)
 		}

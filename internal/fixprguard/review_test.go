@@ -28,7 +28,7 @@ func newReviewRound(t *testing.T, r *testRepo, n int) reviewRound {
 	r.Write("docs/notes/base.md", "base\n")
 	r.CommitAll("base")
 	r.Git("push", "-q", testRemote, "HEAD:"+headsPrefix+testBranch)
-	base := mustBaseline(t, r.Dir)
+	base := mustBaseline(t, r.Dir, r.Home)
 	r.Write(testFile, "phase 4\n")
 	r.CommitAll("phase 4")
 	phase4 := r.Head()
@@ -124,7 +124,7 @@ func TestCheckReviewStateLine(t *testing.T) {
 			if tc.edit != nil {
 				tc.edit(p)
 			}
-			w, router := newTestWorktree(t, p.r.Dir)
+			w, router := newTestWorktree(t, p.r.Dir, p.r.Home)
 			got, err := w.CheckReviewState(t.Context(), p.base, p.phase4)
 			if tc.rule != "" {
 				wantLineRule(t, err, tc.rule)
@@ -146,7 +146,7 @@ func TestCheckReviewStateLine(t *testing.T) {
 		// The value passed only narrows the check: naming another commit of
 		// the line stops instead of moving where the line starts.
 		p := newReviewRound(t, newTestRepo(t), 2)
-		w, _ := newTestWorktree(t, p.r.Dir)
+		w, _ := newTestWorktree(t, p.r.Dir, p.r.Home)
 		_, err := w.CheckReviewState(t.Context(), p.base, p.r.Head())
 		wantLineRule(t, err, linePhase4Mismatch)
 	})
@@ -156,7 +156,7 @@ func TestCheckReviewStateLine(t *testing.T) {
 		// not reached the remote.
 		p := newReviewRound(t, newTestRepo(t), 1)
 		p.r.Git("push", "-q", "-f", testRemote, p.base.head+":"+headsPrefix+testBranch)
-		w, router := newTestWorktree(t, p.r.Dir)
+		w, router := newTestWorktree(t, p.r.Dir, p.r.Home)
 		if _, err := w.CheckReviewState(t.Context(), p.base, p.phase4); err != nil {
 			t.Errorf("CheckReviewState = %v, want nil", err)
 		}
@@ -197,7 +197,7 @@ func TestCheckReviewStateOrder(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			p := newReviewRound(t, newTestRepo(t), 1)
 			tc.edit(t, p)
-			w, router := newTestWorktree(t, p.r.Dir)
+			w, router := newTestWorktree(t, p.r.Dir, p.r.Home)
 			_, err := w.CheckReviewState(t.Context(), p.base, p.phase4)
 			wantStateParts(t, err, tc.parts...)
 			wantNoRule(t, err)
@@ -210,7 +210,7 @@ func TestCheckReviewStateOrder(t *testing.T) {
 		// writes the stop record for the user to compare.
 		p := newReviewRound(t, ignoringRepo(t, "build/"), 1)
 		p.r.Write("build/x_test.go", "package x\n")
-		w, _ := newTestWorktree(t, p.r.Dir)
+		w, _ := newTestWorktree(t, p.r.Dir, p.r.Home)
 		_, err := w.CheckReviewState(t.Context(), p.base, p.phase4)
 		wantStateParts(t, err, PartIgnored)
 		wantNoRule(t, err)
@@ -238,9 +238,8 @@ func TestCheckReviewStateInput(t *testing.T) {
 			dir := p.r.Dir
 			if tc.dir != nil {
 				dir = tc.dir(t, p)
-				t.Chdir(dir)
 			}
-			w, router := newTestWorktree(t, dir)
+			w, router := newTestWorktree(t, dir, p.r.Home)
 			_, err := w.CheckReviewState(t.Context(), p.base, tc.commit(p))
 			if !errors.Is(err, ErrInvalidInput) {
 				t.Errorf("CheckReviewState = %v, want ErrInvalidInput", err)
@@ -256,8 +255,7 @@ func TestCheckReviewStateInput(t *testing.T) {
 		p := newReviewRound(t, newTestRepo(t), 1)
 		dir := t.TempDir()
 		writeFile(t, filepath.Join(dir, ".git"), "not a gitdir line\n")
-		t.Chdir(dir)
-		w, router := newTestWorktree(t, dir)
+		w, router := newTestWorktree(t, dir, p.r.Home)
 		_, err := w.CheckReviewState(t.Context(), p.base, p.phase4)
 		wantStateParts(t, err, PartConfig)
 		if n := gitCalls(router.Calls); n != 0 {
@@ -298,7 +296,7 @@ func failRemotePushes(t *testing.T, r *testRepo) {
 func TestPushReviewed(t *testing.T) {
 	t.Run("pushes_the_checked_head", func(t *testing.T) {
 		p := newReviewRound(t, newTestRepo(t), 2)
-		w, _ := newTestWorktree(t, p.r.Dir)
+		w, _ := newTestWorktree(t, p.r.Dir, p.r.Home)
 		got, err := w.PushReviewed(t.Context(), p.base, p.phase4)
 		want := PushResult{Protocol: Protocol, Pushed: true, Commit: p.r.Head()}
 		if err != nil || got != want {
@@ -314,7 +312,7 @@ func TestPushReviewed(t *testing.T) {
 		// OID that was checked.
 		p := newReviewRound(t, newTestRepo(t), 1)
 		checked := p.r.Head()
-		w, router := newTestWorktree(t, p.r.Dir)
+		w, router := newTestWorktree(t, p.r.Dir, p.r.Home)
 		router.Before = map[string]func(){gitCommand + " push": func() { p.addReviewCommits(1) }}
 		got, err := w.PushReviewed(t.Context(), p.base, p.phase4)
 		if err != nil || got.Commit != checked {
@@ -336,7 +334,7 @@ func TestPushReviewed(t *testing.T) {
 		r.Git("config", "push.followTags", "true")
 		p := newReviewRound(t, r, 1)
 		r.Git("tag", "-a", "-m", "agent tag", "agent-tag", r.Head())
-		w, _ := newTestWorktree(t, r.Dir)
+		w, _ := newTestWorktree(t, r.Dir, r.Home)
 		if _, err := w.PushReviewed(t.Context(), p.base, p.phase4); err != nil {
 			t.Fatalf("PushReviewed = %v", err)
 		}
@@ -354,7 +352,7 @@ func TestPushReviewed(t *testing.T) {
 	t.Run("push_failure", func(t *testing.T) {
 		p := newReviewRound(t, newTestRepo(t), 1)
 		failRemotePushes(t, p.r)
-		w, _ := newTestWorktree(t, p.r.Dir)
+		w, _ := newTestWorktree(t, p.r.Dir, p.r.Home)
 		_, err := w.PushReviewed(t.Context(), p.base, p.phase4)
 		if !errors.Is(err, ErrGitFailed) || !strings.Contains(err.Error(), "push failed") {
 			t.Errorf("PushReviewed = %v, want a git failure of push", err)
@@ -363,7 +361,7 @@ func TestPushReviewed(t *testing.T) {
 
 	t.Run("ls_remote_failure", func(t *testing.T) {
 		p := newReviewRound(t, newTestRepo(t), 1)
-		w, router := newTestWorktree(t, p.r.Dir)
+		w, router := newTestWorktree(t, p.r.Dir, p.r.Home)
 		router.Before = map[string]func(){gitCommand + " ls-remote": func() {
 			if err := os.Rename(p.r.Remote, p.r.Remote+".gone"); err != nil {
 				t.Fatal(err)
@@ -431,9 +429,8 @@ func TestPushReviewedStops(t *testing.T) {
 			dir := p.r.Dir
 			if tc.below {
 				dir = filepath.Join(p.r.Dir, "docs")
-				t.Chdir(dir)
 			}
-			w, router := newTestWorktree(t, dir)
+			w, router := newTestWorktree(t, dir, p.r.Home)
 			_, err := w.PushReviewed(t.Context(), p.base, phase4)
 			tc.check(t, err)
 			wantLayer(t, tc.layer, router.Calls)
