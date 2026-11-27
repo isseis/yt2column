@@ -145,7 +145,7 @@ issue #1167 の計測（`go test -tags test -race -count=1 ./...`）では、`in
 #### F-005: 検証範囲の維持
 
 **Acceptance Criteria**:
-- **AC-14**: テストを書き直す実装の PR では、製品のコードを変えるコミットが、テストだけを変えるコミットより前にある。製品のコードとは、`internal/fixprguard` と `cmd/fixprguard` の Go のファイルのうち、`make coverage-compare` が製品のコードと分類するもの（`internal/coveragecompare/product.go`）である。製品を変えるコミットは、コンパイルを通すためにテストとテストの補助を一緒に変えてよい。F-006 の削除の PR では、この比較の代わりに AC-18 の比較を行う。その PR で製品のコードを最後に変えたコミット（その PR が製品を変えないときはマージベース）を `BASE` にした `make coverage-compare BASE=<そのコミット>` が、最後の行に `coverage-compare: PASS` を出して終わる。`FAIL` か `STOP` で終わったときは、原因を直して比べ直すか、止めて人に尋ねる。すべての回の出力が、最後の行まで PR の説明に記録されている。
+- **AC-14**: テストを書き直す実装の PR では、製品のコードを変えるコミットが、テストだけを変えるコミットより前にある。製品のコードとは、`internal/fixprguard` と `cmd/fixprguard` の Go のファイルのうち、`make coverage-compare` が製品のコードと分類するもの（`internal/coveragecompare/product.go`）である。製品を変えるコミットは、コンパイルを通すためにテストとテストの補助を一緒に変えてよい。その PR で製品のコードを最後に変えたコミット（その PR が製品を変えないときはマージベース）を `BASE` にした `make coverage-compare BASE=<そのコミット>` が、最後の行に `coverage-compare: PASS` を出して終わる。`FAIL` か `STOP` で終わったときは、原因を直して比べ直すか、止めて人に尋ねる。すべての回の出力が、最後の行まで PR の説明に記録されている。F-006 の削除の PR では、この比較の代わりに AC-18 の比較を行う。
 - **AC-15**: 実装の PR ごとに、マージベースで `internal/fixprguard` と `cmd/fixprguard` のテストが報告する（パッケージ, テストの名前）の組（`go test -json` の `Package` と `Test` の値。サブテストを含む）のうち、マージベースで成功（`pass`）したものは、PR の先頭でもすべて成功と報告される。スキップ（`skip`）に変わったものはない。ただし、`CLAUDE.md`「Testing Strategy」の削除の規則に従って削除したテストを除く。PR の先頭で新しく現れた組は、その理由とともに PR の説明に記録されている。
 - **AC-16**: 実装の PR ごとに、期待値（比べる値・番兵・終了コード・出力）を変えたテストは、変えた理由とともに PR の説明に記録されている。製品を変えるコミット（AC-14）でのテストとテストの補助の差分は、製品の呼び出しの引数と、テストの準備の変更に限られる。どちらも、PR のレビューで差分を読んで確かめる。
 - **AC-17**: 実装の PR ごとに、`make test` と `make lint` が通る。
