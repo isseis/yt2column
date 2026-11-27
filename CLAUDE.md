@@ -87,10 +87,17 @@ approver give it under these principles.
 
 Exceptions:
 
-- **The bilingual README.** The README is the only document kept in two
-  languages (`README.md` and `README.en.md`). Change `README.md` first, then
+- **The bilingual README.** The README is the only document kept as a
+  translated pair of two files (`README.md` and `README.en.md`). Change
+  `README.md` first, then
   carry the change to `README.en.md` with `/mktrans` ("Translation Guidelines"
   below).
+- **The Chrome Web Store listing in one bilingual file.**
+  `docs/store/chrome_web_store.md` holds both the Japanese and the English
+  detailed description, and it stays outside the two-language sync of
+  `/mktrans` and `TestReadmeSyncMarker` ([ADR-0035](docs/dev/adr/0035-language-policy.md)).
+  Change both languages together in that one file. Reason: the listing is a
+  final text pasted into the store, not a document translated change by change.
 - **`INSTALL.md` in Japanese only (time-bounded).** `INSTALL.md` is an
   end-user document (principle (c)), but it is kept in Japanese only until the
   extension is submitted to the Chrome Web Store, because initial zip users are
@@ -240,7 +247,7 @@ prohibitions of this file and `AGENTS.md`, and copies no procedure.
 - `/mkplan <task>` - Create `03_implementation_plan.md` with its PR boundaries (requires approved architecture) and open its PR; it stops without writing for a task that takes the simple process, whose documents `/mkreq` writes
 - `/mkplan2 <task>` - Embed PR boundaries into an approved plan that lacks them (plans written before `/mkplan` did it) and open its PR
 - `/runplan <task>` - Implement the phase groups of an approved plan up to the next PR checkpoint, then open the PR
-- `/runpr [PR | branch | task]` - Drive a PR through CI and its review threads, record its bookkeeping (a document's approval, a plan checkpoint), merge it, and show the next command, which it does not run; it requests a CodeRabbit PR review only when the user chooses it in the merge question; for a standalone change it also creates the PR
+- `/runpr [PR | branch | task]` - Drive a PR through CI and its review threads, record its bookkeeping (a document's approval, a plan checkpoint), merge it, and show the next command, which it does not run; it requests a PR review (CodeRabbit or Sourcery AI) only when the user chooses it in the merge question; for a standalone change it also creates the PR
 - `/weakreview [range | PR] [--no-fix | --fix]` - High-model review of a commit range: a correctness review and a weak-model failure review run on the harness's high-role model in one pass; by default it fixes the Critical and Major findings and commits the fixes on the current branch without pushing, and `--no-fix` only reports
 - `/fixpr [PR]` - Resolve unresolved PR review threads
 - `/mergepr [PR]` - Squash-merge a PR with a generated commit message and clean up its branch
@@ -276,14 +283,22 @@ merge question that decides the bookkeeping (for a document, its
 `approved` status) and the merge with `/mergepr`, and shows the next command
 when there is one; the user runs it, which opens the next PR and stops again.
 
-CodeRabbit does not review a PR automatically (`.coderabbit.yaml` turns its
-automatic review off). `/runpr` waits while a request comment is outstanding,
-whether the user chose it in the merge question or wrote it by hand. Its
+CodeRabbit reviews a PR only when it is asked (`.coderabbit.yaml` turns its
+automatic review off), while Sourcery AI reviews a PR automatically on push as
+well as when it is asked. Both reviewers are in the `PR reviewers` table of
+`_context.md`, which holds each one's profile, request comment, and accepted
+request texts. `/runpr` waits while a manual request comment is outstanding,
+whether the user chose it in the merge question or wrote it by hand. It also
+waits up to fifteen minutes for an automatic Sourcery AI review running on
+`head`, handles the threads it opens, and shows its state and URL in the merge
+question's summary, but does not count its completion as reviewed. CodeRabbit's
 allowance is shared across the user's PR reviews. Later changes are reviewed
 with the CodeRabbit CLI, whose allowance is separate from the PR review's.
 `/runpr` never requests a PR review by itself: it turns the escalation's
 answer into a recommendation in the merge question (its "先に PR レビューを依頼"
-option) and requests one only when the user chooses it
+option) and, when the user chooses it, asks which reviewer to request
+(CodeRabbit, Sourcery AI, or back to the merge question) and posts only that
+reviewer's request comment
 ([pr-review-escalation.md](.claude/commands/_lib/pr-review-escalation.md)).
 For a change that falls only under the escalation's other criteria, the
 local review stands in when the branch's records show it saw every commit
@@ -930,7 +945,9 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   manifest permissions, the
   `project_overview.md` notes (the environment variable names and
   `costPrefix`), the production profile's configuration block and step table in
-  `docs/dev/production_profile.md`, the configuration block of
+  `docs/dev/production_profile.md`, the store listing's table of display names
+  and short descriptions against `messages.json` (`TestStoreListingMatchesMessages`),
+  the configuration block of
   `generation.md`, the values `generation.md`, `cli.md`, and `development.md`
   hold, the
   `/fixpr` and `/runpr` command documents, `cmd/mergepr`'s checks of the
@@ -947,10 +964,9 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   before committing such a change.
 - `yt-dlp` must be on `PATH` (or set `YT2COLUMN_YTDLP_PATH`) to run the CLI; it is
   not needed for `make test`.
-- `make test` needs `jq` on `PATH`: `TestRunprDocContract` and
-  `TestFixprPhase6CountFilter` run the `--jq` filters of `runpr.md` step 3
-  and `fixpr.md` Phase 6 with it, and fail instead of skipping when it is
-  missing. The `doc-guard` CI job runs these tests too.
+- `make test` needs `jq` on `PATH`: `TestFixprPhase6CountFilter` runs the
+  `--jq` filter of `fixpr.md` Phase 6 with it, and fails instead of skipping
+  when it is missing. The `doc-guard` CI job runs this test too.
 - `make test` needs bash 4 or later as the first `bash` on `PATH` (macOS's
   `/bin/bash` is 3.2): `TestMarkerReadingMatchesDecisionScript` in
   `internal/chief` runs `.claude/commands/_lib/high-review-decision.sh`, which
@@ -1240,7 +1256,7 @@ for the agents that read it, and the Antigravity skill entries point here.
   `git push` may be executed without approval. Changing, disabling, or
   deleting the record ruleset that protects these tags also requires the
   user's explicit approval
-- Invoking `/mergemain` (whether typed by a human or sent by `chief`) approves, for that PR only, the network operations it runs through `mergepr`: `gh pr view`, `git fetch origin`, `git ls-remote` on the PR's head branch, and `git push` (non-force) to the PR's head branch. It approves no merge (`gh pr merge`), no PR review request, no write to a PR or review thread, no `numreserve` call, and no push to any branch other than the PR's head branch
+- Invoking `/mergemain` (whether typed by a human or sent by `chief`) approves, for that PR only, the network operations it runs through `mergepr`: `gh pr view`, `git fetch origin`, `git ls-remote` on the PR's head branch, and `git push` (non-force) to the PR's head branch. When the take-in requires extension checks, it also approves running `make ext-install` (including fetching dependencies from `registry.npmjs.org`), only in step 7 of `mergemain.md`, before any restore, and only as the bare command (no arguments, variables, or chaining); it never approves it after a restore. It approves no merge (`gh pr merge`), no PR review request, no write to a PR or review thread, no `numreserve` call, and no push to any branch other than the PR's head branch
 - Invoking `/chief` approves, for that session, the read-only network operations
   the `chief` tool runs while it shows the status, watches, makes a task's
   workspace, removes one, or sends a command the human chose: `git fetch origin
