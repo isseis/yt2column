@@ -11,6 +11,7 @@
 #   CHECK_PKGS="./cmd/yt2column ./internal/mergepr"  packages to run
 #   CHECK_RUN=<regexp>                                -run of the full runs
 #   CHECK_TOPS="TestA TestB"                          top-level functions of the single selections
+#   CHECK_SKIP_AC04=1                                 PR-3 mode: skip AC-04/AC-05 BASE parity and pick selections from AFTER
 set -euo pipefail
 
 # Run from a copy outside the work tree: checking out BASE removes this file.
@@ -76,14 +77,21 @@ full_args=()
 [ -z "${CHECK_RUN:-}" ] || full_args+=(-run "$CHECK_RUN")
 
 echo "== full runs =="
-git switch --quiet --detach "$base"
-json_run "$T/base.json" "${full_args[@]+"${full_args[@]}"}" || { cat "$T/base.json.err" >&2; die "go test failed at BASE"; }
-git switch --quiet --detach "$after"
-json_run "$T/after.json" "${full_args[@]+"${full_args[@]}"}" || { cat "$T/after.json.err" >&2; die "go test failed at AFTER"; }
-echo "full runs: both passed"
+if [ "${CHECK_SKIP_AC04:-0}" = 1 ]; then
+  git switch --quiet --detach "$after"
+  json_run "$T/after.json" "${full_args[@]+"${full_args[@]}"}" || { cat "$T/after.json.err" >&2; die "go test failed at AFTER"; }
+  echo "full runs: AFTER passed (BASE skipped under CHECK_SKIP_AC04=1)"
+else
+  git switch --quiet --detach "$base"
+  json_run "$T/base.json" "${full_args[@]+"${full_args[@]}"}" || { cat "$T/base.json.err" >&2; die "go test failed at BASE"; }
+  git switch --quiet --detach "$after"
+  json_run "$T/after.json" "${full_args[@]+"${full_args[@]}"}" || { cat "$T/after.json.err" >&2; die "go test failed at AFTER"; }
+  echo "full runs: both passed"
+fi
 
 names() { jq -r --arg a "$2" 'select(.Action==$a and .Test!=null) | [.Package,.Test] | @tsv' "$1" | LC_ALL=C sort -u; }
-for s in base after; do
+parse_set() {
+  local s=$1
   names "$T/$s.json" pass > "$T/$s.pass"
   names "$T/$s.json" skip > "$T/$s.skip"
   jq -r 'select(.Action=="fail") | [.Package,(.Test // "")] | @tsv' "$T/$s.json" > "$T/$s.fail"
@@ -92,44 +100,59 @@ for s in base after; do
   # leaves: pass names that are not a "/" prefix of another pass name
   awk -F'\t' '{ k[NR]=$0; s=$2; while (match(s, /\/[^\/]*$/)) { s=substr(s,1,RSTART-1); par[$1 FS s]=1 } }
     END { for (i=1;i<=NR;i++) { split(k[i], f, FS); if (!((f[1] FS f[2]) in par)) print k[i] } }' "$T/$s.pass" | LC_ALL=C sort -u > "$T/$s.leaves"
-done
-# keep only the tops that BASE has
-restrict() { awk -F'\t' 'NR==FNR { t[$0]=1; next } { top=$2; sub(/\/.*/, "", top); if ((($1) FS top) in t) print }' "$T/base.tops" "$1"; }
-for s in base after; do
-  restrict "$T/$s.leaves" > "$T/$s.leaves.r"
-  restrict "$T/$s.skip" > "$T/$s.skip.r"
-done
-# A leaf name can hold a commit ID that changes every run (-g plus 12 hex digits);
-# replace it by one mark for the comparison of the name sets only.
-norm() { sed -E 's/-g[0-9a-f]{12}(\/|$)/-g<id>\1/g' "$1" | LC_ALL=C sort -u; }
-echo "BASE leaves: $(wc -l < "$T/base.leaves.r"), AFTER leaves: $(wc -l < "$T/after.leaves.r"), BASE tops: $(wc -l < "$T/base.tops")"
-
-echo "== names, fail and skip (compare) =="
-[ -s "$T/base.leaves.r" ] || die "BASE has no leaf"
-if diff <(norm "$T/base.leaves.r") <(norm "$T/after.leaves.r") > "$T/names.diff"; then
-  check "names" 0
+}
+if [ "${CHECK_SKIP_AC04:-0}" = 1 ]; then
+  parse_set after
+  echo "AFTER leaves: $(wc -l < "$T/after.leaves"), AFTER tops: $(wc -l < "$T/after.tops")"
+  echo "== names, fail and skip (compare) =="
+  echo "names/skip: skipped (CHECK_SKIP_AC04=1)"
+  if [ ! -s "$T/after.fail" ]; then check "fail" 0; else check "fail" 1 "fail events present"; fi
+  echo "== bash 3 leaves =="
+  echo "bin-bash-3: skipped (CHECK_SKIP_AC04=1)"
+  sel_leaves="$T/after.leaves"
+  sel_label="AFTER"
 else
-  check "names" 1 "$(grep -c '^[<>]' "$T/names.diff") differing names"; head -40 "$T/names.diff"
-fi
-if [ ! -s "$T/base.fail" ] && [ ! -s "$T/after.fail" ]; then check "fail" 0; else check "fail" 1 "fail events present"; fi
-if diff <(norm "$T/base.skip.r") <(norm "$T/after.skip.r") > "$T/skip.diff"; then
-  check "skip" 0
-else
-  check "skip" 1 "skip sets differ"; head -40 "$T/skip.diff"
-fi
-
-echo "== bash 3 leaves =="
-bin_major=$(/bin/bash -c 'echo ${BASH_VERSINFO[0]}')
-[ -n "$bin_major" ] || die "cannot read the version of /bin/bash"
-if [ "$bin_major" = 3 ]; then
-  bad=""
-  for f in TestReviewRecordsCoverage TestReviewRecordsUnreviewed TestReviewRecordsCrossCheck TestReviewRecordsFableAlias; do
-    n=$(awk -F'\t' -v f="$f" 'index($2, f "/bin-bash-3/")==1' "$T/base.leaves.r" | wc -l)
-    [ "$n" -gt 0 ] || bad="$bad $f"
+  for s in base after; do parse_set "$s"; done
+  # keep only the tops that BASE has
+  restrict() { awk -F'\t' 'NR==FNR { t[$0]=1; next } { top=$2; sub(/\/.*/, "", top); if ((($1) FS top) in t) print }' "$T/base.tops" "$1"; }
+  for s in base after; do
+    restrict "$T/$s.leaves" > "$T/$s.leaves.r"
+    restrict "$T/$s.skip" > "$T/$s.skip.r"
   done
-  if [ -z "$bad" ]; then check "bin-bash-3" 0; else check "bin-bash-3" 1 "no bin-bash-3 leaf under:$bad"; fi
-else
-  echo "bin-bash-3: not applicable (/bin/bash is version $bin_major)"
+  # A leaf name can hold a commit ID that changes every run (-g plus 12 hex digits);
+  # replace it by one mark for the comparison of the name sets only.
+  norm() { sed -E 's/-g[0-9a-f]{12}(\/|$)/-g<id>\1/g' "$1" | LC_ALL=C sort -u; }
+  echo "BASE leaves: $(wc -l < "$T/base.leaves.r"), AFTER leaves: $(wc -l < "$T/after.leaves.r"), BASE tops: $(wc -l < "$T/base.tops")"
+
+  echo "== names, fail and skip (compare) =="
+  [ -s "$T/base.leaves.r" ] || die "BASE has no leaf"
+  if diff <(norm "$T/base.leaves.r") <(norm "$T/after.leaves.r") > "$T/names.diff"; then
+    check "names" 0
+  else
+    check "names" 1 "$(grep -c '^[<>]' "$T/names.diff") differing names"; head -40 "$T/names.diff"
+  fi
+  if [ ! -s "$T/base.fail" ] && [ ! -s "$T/after.fail" ]; then check "fail" 0; else check "fail" 1 "fail events present"; fi
+  if diff <(norm "$T/base.skip.r") <(norm "$T/after.skip.r") > "$T/skip.diff"; then
+    check "skip" 0
+  else
+    check "skip" 1 "skip sets differ"; head -40 "$T/skip.diff"
+  fi
+
+  echo "== bash 3 leaves =="
+  bin_major=$(/bin/bash -c 'echo ${BASH_VERSINFO[0]}')
+  [ -n "$bin_major" ] || die "cannot read the version of /bin/bash"
+  if [ "$bin_major" = 3 ]; then
+    bad=""
+    for f in TestReviewRecordsCoverage TestReviewRecordsUnreviewed TestReviewRecordsCrossCheck TestReviewRecordsFableAlias; do
+      n=$(awk -F'\t' -v f="$f" 'index($2, f "/bin-bash-3/")==1' "$T/base.leaves.r" | wc -l)
+      [ "$n" -gt 0 ] || bad="$bad $f"
+    done
+    if [ -z "$bad" ]; then check "bin-bash-3" 0; else check "bin-bash-3" 1 "no bin-bash-3 leaf under:$bad"; fi
+  else
+    echo "bin-bash-3: not applicable (/bin/bash is version $bin_major)"
+  fi
+  sel_leaves="$T/base.leaves.r"
+  sel_label="BASE"
 fi
 
 echo "== single selections (AFTER) =="
@@ -169,8 +192,8 @@ fi
 [ -n "$tops" ] || die "no top-level test function to select"
 sel_failed=0
 for top in $tops; do
-  awk -F'\t' -v t="$top" '$2==t || index($2, t "/")==1' "$T/base.leaves.r" > "$T/top.leaves"
-  if [ ! -s "$T/top.leaves" ]; then echo "select FAILED: $top has no leaf in BASE"; sel_failed=1; continue; fi
+  awk -F'\t' -v t="$top" '$2==t || index($2, t "/")==1' "$sel_leaves" > "$T/top.leaves"
+  if [ ! -s "$T/top.leaves" ]; then echo "select FAILED: $top has no leaf in $sel_label"; sel_failed=1; continue; fi
   for pos in 1 "$(wc -l < "$T/top.leaves" | tr -d ' ')"; do
     line=$(sed -n "${pos}p" "$T/top.leaves")
     run_single "${line%%$'\t'*}" "${line#*$'\t'}" || sel_failed=1
@@ -183,9 +206,9 @@ mid_failed=0
 for name in "${middles[@]+"${middles[@]}"}"; do
   # The leaves that use one shared state span several top-level functions, so
   # "neither first nor last" is judged among all leaves of the package.
-  pkg=$(awk -F'\t' -v n="$name" '$2==n {print $1; exit}' "$T/base.leaves.r")
-  if [ -z "$pkg" ]; then echo "middle FAILED: $name is not in BASE"; mid_failed=1; continue; fi
-  awk -F'\t' -v p="$pkg" '$1==p' "$T/base.leaves.r" > "$T/pkg.leaves"
+  pkg=$(awk -F'\t' -v n="$name" '$2==n {print $1; exit}' "$sel_leaves")
+  if [ -z "$pkg" ]; then echo "middle FAILED: $name is not in $sel_label"; mid_failed=1; continue; fi
+  awk -F'\t' -v p="$pkg" '$1==p' "$sel_leaves" > "$T/pkg.leaves"
   n=$(wc -l < "$T/pkg.leaves" | tr -d ' ')
   ln=$(awk -F'\t' -v n="$name" '$2==n {print NR; exit}' "$T/pkg.leaves")
   if [ "$ln" -le 1 ] || [ "$ln" -ge "$n" ]; then echo "middle FAILED: $name is the first or the last leaf of $pkg"; mid_failed=1; continue; fi
