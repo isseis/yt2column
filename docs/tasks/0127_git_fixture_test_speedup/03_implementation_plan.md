@@ -1036,15 +1036,15 @@ coverage-compare: PASS
 -   **壊し方の確認:** 各判定が少なくとも 1 つの壊し方で失敗することを確かめる（ステップ 8-2）。
 -   **予定の実行:** PR-3 を作る前に `/runplan` が実行し、結果を本節に書く。記録の後にタスクのディレクトリの外のファイルかスクリプトが変わったときはやり直す（スクリプトが変わったときは壊し確認もやり直す）。
 -   **テスト:** コミットしない。
--   **壊し方の記録:** 確かめたコミット: `6649ffc4649bb94a689ed3ad30daea7db57bbc62`。`CHECK_ONLY`・`CHECK_RR_RUN`・`CHECK_HRD_RUN` で狭め、作業ツリーの外に写したスクリプトに壊し方を入れて確かめた（狭めた実行は記録しない）。壊さない実行（`mutations` のみ・`hrd-lines` のみ）は `verify_bash_cut: PASS`（0）。
+-   **壊し方の記録:** 確かめたコミット: `a579553be4706d346d842d0cbc844d9ade597edb`（既定実行の `env -u "$optin_var"` 隔離と `PARTIAL`/`MISSING` 検索の `|| true` を足した後のスクリプトで、全判定の壊し確認をやり直した）。`CHECK_ONLY`・`CHECK_RR_RUN`・`CHECK_HRD_RUN` で狭め、作業ツリーの外に写したスクリプトに壊し方を入れて確かめた（狭めた実行は記録しない）。壊さない実行（環境変数 `YT2COLUMN_TEST_BASH3_ALL=1` 下での `optin-all` を含む）は `verify_bash_cut: PASS`（0）。
     -   作業ツリー: 追跡されていないファイルを置いた → `verify_bash_cut: STOP: the work tree is not clean`（1）
-    -   `review-records.sh` 行集合（`path-bash`・`bin-bash-3`）: AFTER の行一覧から 1 行削った → `check rr-lines-path-bash: FAIL (line sets differ)`、`check rr-lines-bin-bash-3: FAIL (no lines recorded)`（1）
-    -   全 mode 分岐と `fail()` 分岐: `TestReviewRecordsFableAlias` のみに狭めた → `check rr-modes-path-bash: FAIL (missing modes: coverage unreviewed cross-check, fail_branches_missing=1)`、`check rr-modes-bin-bash-3: FAIL`（1）
+    -   `review-records.sh` 行集合（`path-bash`・`bin-bash-3`）: AFTER の行一覧から 1 行削った → `check rr-lines-path-bash: FAIL (line sets differ)`、`check rr-lines-bin-bash-3: FAIL (line sets differ)`（1）
+    -   全 mode 分岐と `fail()` 分岐: `TestReviewRecordsFableAlias` のみに狭めた → `check rr-modes-path-bash: FAIL (missing modes: coverage unreviewed cross-check, fail_branches_missing=1)`、`check rr-modes-bin-bash-3: FAIL (missing modes: coverage unreviewed cross-check, fail_branches_missing=1)`（1）
     -   `high-review-decision.sh` 行集合: AFTER の行一覧から 1 行削った → `check hrd-lines: FAIL (line sets differ)`（1）
     -   ミューテーション検出: `drop-log-encoding` のミューテーションをテストを落とさないコメント追記（`# noop`）に替えた（`cmp -s` は差分ありと判定し `go test` が rc=0 で通る） → `check mut-drop-log-encoding: FAIL (expected test failure (rc=0))`（終了コード 1）。また `drop-fable` の置換パターンを一致しない文字列に替えた → `check mut-drop-fable: FAIL (mutation did not change .claude/commands/_lib/review-records.sh)`（1）
-    -   オプトイン全件一致: C1 適用前の `BASE == AFTER`（既定と全件の末端数が同じ 4 件）で流した → `check optin-all: FAIL (default or opt-in leaf sets do not match expectations)`（1）
+    -   オプトイン全件一致: C1 適用前の `BASE == AFTER`（既定と全件の末端数が同じ 4 件）で流した → `check optin-all: FAIL (default or opt-in leaf sets do not match expectations)`（1）。なお環境変数 `YT2COLUMN_TEST_BASH3_ALL=1` 下で狭めて流した健常実行は `default leaves: path-bash=2, bin-bash-3=1; opt-in leaves: path-bash=2, bin-bash-3=2` で `check optin-all: PASS`（0）
     -   元のブランチへの復帰: ブランチへの切り替えを外した → `verify_bash_cut: STOP: not on the original branch`（1）。その後、手でブランチに戻した
--   **実行の記録:** PR-3（2026-11-28、結果: 通った）。BASE: `0dcdfc0cbeefa68495349c12628a7c6a57232cf5`、AFTER: `abf0ebc69a3b3eb9715d041c0f87b2c1b9332bb1`。
+-   **実行の記録:** PR-3（2026-11-28、結果: 通った。スクリプトのコミット: `a579553be4706d346d842d0cbc844d9ade597edb`）。BASE: `0dcdfc0cbeefa68495349c12628a7c6a57232cf5`、AFTER: `abf0ebc69a3b3eb9715d041c0f87b2c1b9332bb1`。
 
 `````text
 BASE: 0dcdfc0cbeefa68495349c12628a7c6a57232cf5
