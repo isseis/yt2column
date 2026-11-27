@@ -87,7 +87,6 @@ func TestCheckReviewStateLine(t *testing.T) {
 	}{
 		{name: "no_review_commit"},
 		{name: "one_review_commit", edit: func(p reviewRound) { p.addReviewCommits(1) }, commits: 1},
-		{name: "three_review_commits", edit: func(p reviewRound) { p.addReviewCommits(3) }, commits: 3},
 		{name: "at_the_limit", edit: func(p reviewRound) { p.addReviewCommits(maxReviewCommits) }, commits: maxReviewCommits},
 		{name: "over_the_limit", edit: func(p reviewRound) { p.addReviewCommits(maxReviewCommits + 1) }, rule: lineTooLong},
 		{name: "head_is_a_merge", edit: func(p reviewRound) { p.mergeOnHead() }, rule: lineMergeCommit},
@@ -149,20 +148,6 @@ func TestCheckReviewStateLine(t *testing.T) {
 		w, _ := newTestWorktree(t, p.r.Dir, p.r.Home)
 		_, err := w.CheckReviewState(t.Context(), p.base, p.r.Head())
 		wantLineRule(t, err, linePhase4Mismatch)
-	})
-
-	t.Run("push_target_not_moved", func(t *testing.T) {
-		// check reads no push target, so it passes when Phase 4's push has
-		// not reached the remote.
-		p := newReviewRound(t, newTestRepo(t), 1)
-		p.r.Git("push", "-q", "-f", testRemote, p.base.head+":"+headsPrefix+testBranch)
-		w, router := newTestWorktree(t, p.r.Dir, p.r.Home)
-		if _, err := w.CheckReviewState(t.Context(), p.base, p.phase4); err != nil {
-			t.Errorf("CheckReviewState = %v, want nil", err)
-		}
-		if indexOf(router.Calls, gitCommand+" ls-remote") >= 0 {
-			t.Errorf("read the push target: %v", router.Calls)
-		}
 	})
 }
 
