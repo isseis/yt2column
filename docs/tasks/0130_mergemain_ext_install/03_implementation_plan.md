@@ -194,13 +194,13 @@ Diff record (AC-08):
 
 - Compared paths: `.claude/commands/mergemain.md`
 - Merge-base: `781a2373c4c617cb8061e24b6723842ce7364f22`
-- Compared commit: `ed8232f6364c728d89d5e12e7168761fcd699146`
+- Compared commit: `ae87023f38825f952c4171b97ca0281bd42d634d`
 
 Path diff:
 
 ````text
 diff --git a/.claude/commands/mergemain.md b/.claude/commands/mergemain.md
-index e3356a3fcd26569225fa31c73238b82bfa0a7680..c8f20cc33a915c15d040f8bbb63ca736371f7188 100644
+index e3356a3fcd26569225fa31c73238b82bfa0a7680..f10a6fb84b4f900c06d3e0e82ea2e517b4c3ab45 100644
 --- a/.claude/commands/mergemain.md
 +++ b/.claude/commands/mergemain.md
 @@ -24,8 +24,13 @@ for this PR only, the four network operations performed through `mergepr`:
@@ -244,7 +244,7 @@ index e3356a3fcd26569225fa31c73238b82bfa0a7680..c8f20cc33a915c15d040f8bbb63ca736
 
  ## Procedure
 
-@@ -261,11 +271,34 @@ applied to each, and a short summary of the resolution for step 10.
+@@ -261,11 +271,37 @@ applied to each, and a short summary of the resolution for step 10.
 
       If any listed path is under `extension/` or equals `README.md`,
       `README.en.md`, or `docs/dev/guides/development.md`:
@@ -263,7 +263,10 @@ index e3356a3fcd26569225fa31c73238b82bfa0a7680..c8f20cc33a915c15d040f8bbb63ca736
 +        failed, timed out, or denied. If it did not succeed, do not run
 +        `make ext-check` and do not retry it (an adapter's elevated rerun
 +        inside `shell-run` after a sandbox failure does not count as a retry;
-+        use the post-elevation result as the `shell-run` outcome): run
++        use the post-elevation result as the `shell-run` outcome, except if
++        that elevated rerun is denied after the sandboxed attempt already ran,
++        record the outcome as failed so step 10 warns that
++        `extension/node_modules` may be missing or incomplete): run
 +        step 9 and go to step 10 with reason `検査の準備がない`.
 +        - When permission evaluation denies it, proceed to step 9 without
 +          asking the human.
@@ -281,7 +284,7 @@ index e3356a3fcd26569225fa31c73238b82bfa0a7680..c8f20cc33a915c15d040f8bbb63ca736
  8. **Push (`mergemain-push`).**
     Run as a standalone command:
 
-@@ -323,12 +356,36 @@ applied to each, and a short summary of the resolution for step 10.
+@@ -323,12 +359,36 @@ applied to each, and a short summary of the resolution for step 10.
          none.
        - **詳細**: brief summary of what failed, whether the branch and work tree
          were restored to `<base-head>`, and (when `--protocol` mismatched) the
