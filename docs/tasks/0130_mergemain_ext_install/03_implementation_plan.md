@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-27 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-27 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）および [02_architecture.md](02_architecture.md)（アーキテクチャ設計書。以下、設計書）に基づく実装計画である。既存ファイルの記述は、コミット `0dcdfc0c` の内容で確かめた。`file:line` はこのコミットの行番号を指す。
@@ -214,3 +214,7 @@ Diff record (AC-08):
 1.  本計画書の PR レビューを受け、`/runpr` で承認（`approved` への更新とマージ）を行う。
 2.  `/runplan 0130` を実行し、ステップ 1-1・1-2 を実施して実装 PR を作成する。
 3.  実装 PR のマージ前に人が §9.1 の手順（実地の確かめ、§9.2 の記録、ADR-0046「結果」と「経緯」の更新、実装 PR 説明の追記）を実施し、検証用 PR・一時 worktree・一時ブランチを片付けたうえで `/runpr` でマージする。
+
+## 変更履歴
+
+- 2026-11-27 承認（isseis、#1199）
