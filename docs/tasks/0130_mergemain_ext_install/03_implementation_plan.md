@@ -20,7 +20,7 @@
 
 -   設計書 1 章・8 章に従い、変更対象は `.claude/commands/mergemain.md`、`CLAUDE.md`、`docs/dev/adr/0046-chief-of-staff.md`、`.claude/commands/_lib/harness-antigravity.md` の 4 文書のみとする。Go コード、`Makefile`、`.claude/settings.json`、ガードテストは変更しない。
 -   上記 4 文書の初期変更は 1 つのコミットにまとめ、`mergemain.md` と `CLAUDE.md` の承認の不整合、および Antigravity での昇格対象の不整合を作らない（設計書 8 章）。
--   AC-07・AC-08 の差分限定は、差分が小さいため一時スクリプト（`_checks/`）を作らず、`docs/dev/conventions/requirements_process.md` §4「`diff` verification」の記録した差分の読み取り（recorded diff reading）で検証する。
+-   AC-07・AC-08 の差分が定められた範囲に限られることは、差分が小さいため一時スクリプト（`_checks/`）を作らず、`docs/dev/conventions/requirements_process.md` §4「`diff` verification」の記録した差分の読み取り（recorded diff reading）で検証する。
 -   設計書 7.3 の実地の確かめ（auto mode での `/mergemain` 実行）は、実装 PR を開いた後・マージの前に人が一時的な検証用 PR で実施し、その結果の記録と ADR-0046 の「結果」の更新を同じ実装 PR に追加する。
 
 ### 1.1. 既存コード調査結果
@@ -31,7 +31,7 @@
 |---|---|---|
 | `.claude/commands/mergemain.md` | 承認（`:16-28`）、禁止事項 9（`:78-80`）、止まる理由の対応（`:110`）、手順 7（`:251-267`）、手順 10（`:305-336`） | 承認は依存のインストールを明示的に除外し、禁止事項 9 は `make ext-install` を禁じ、手順 7 は `make ext-preflight` → `make ext-check` を本文の箇条で指示している。設計書 3.1 の 5 か所のみを更新する |
 | `CLAUDE.md` | 「Tool Execution Safety」の `/mergemain` の項（`:1259`） | 4 つのネットワーク操作のみを承認している。設計書 3.2 に従い、拡張の検査が要る取り込みでの `make ext-install` の承認を足す |
-| `docs/dev/adr/0046-chief-of-staff.md` | 食い違いの文（`:85`）、「結果」の未確認・拒否時の文（`:515`） | `:85` に `mergemain.md`・`CLAUDE.md` との食い違いの文が残っている。`:515` に auto mode の判定が未確認である旨と、人が確認を断ったときの想定がある。ステップ 1-1 で `:85` を消し、ステップ 1-3 の実地の確かめの後に `:515` を実測に合わせて更新する（設計書 3.4） |
+| `docs/dev/adr/0046-chief-of-staff.md` | 食い違いの文（`:85`）、「結果」の未確認・拒否時の文（`:515`） | `:85` に `mergemain.md`・`CLAUDE.md` との食い違いの文が残っている。`:515` に auto mode の判定が未確認である旨と、人が確認を断ったときの想定がある。ステップ 1-1 で `:85` を消し、ステップ 1-3 の実地の確かめの後に `:515` を観測結果に合わせて更新する（設計書 3.4） |
 | `.claude/commands/_lib/harness-antigravity.md` | 4 章「Sandbox Elevation Rules」の 2（`:48-55`） | 昇格してよいネットワークコマンドの例に `make ext-install` がない。設計書 3.7 に従い 1 項目を足す |
 | `.claude/settings.json` | 全体（`:1-54`、`mergemain-restore` の `ask` 規則は `:14`） | `make` の `allow` 規則はない。変更しない（設計書 1.2・3.3） |
 | `Makefile` | `ext_preflight`（`:407-413`）、`ext-preflight`（`:417-418`）、`ext-install`（`:425-428`）、`ext-typecheck`〜`ext-build`（`:430-458`） | `ext-install` が `ext_check_versions`、`check-lockfile`、`npm ci --ignore-scripts --registry=https://registry.npmjs.org/ --replace-registry-host=never` を順に実行する。変更しない（要件書 2.3） |
@@ -42,12 +42,12 @@
 
 人間のレビュアーが決めたもの:
 
--   **設計書 7.3 の実地の確かめの用意の仕方**
-    -   **決定:** 一時的な検証用 PR を使う。`main` 上で `extension/`・`README.md`・`README.en.md`・`docs/dev/guides/development.md` のいずれかを変更した直近コミットの親から一時ブランチを切り、実装コミットを当てて draft の検証用 PR を作り、確かめの後に閉じて一時ブランチを消す。
-    -   **理由:** 実装 PR の履歴に検証用の merge コミットを残さず、`main` の進み具合に依存せずに拡張の検査が要る取り込みを確実に再現できるためである。
+-   **設計書 7.3 の実地の確かめの用意の仕方:**
+    -   **決定:** 一時的な検証用 PR を使う。`main` 上で `extension/`・`README.md`・`README.en.md`・`docs/dev/guides/development.md` のいずれかを変更した直近コミットの親から一時ブランチを切り、実装 PR の `.claude/commands/mergemain.md` と `CLAUDE.md` だけを取り込んで draft の検証用 PR を作り、確かめの後に閉じて一時ブランチと検証用の worktree を消す。
+    -   **理由:** 実装 PR の履歴に検証用の merge コミットを残さず、`main` の進み具合に依存せずに拡張の検査が要る取り込みを確実に再現できるためである。また、ADR-0046 の変更を含めないことで、親コミット以降の ADR 更新との不要な衝突や ADR チェックによる停止を避けられる（設計書 7.3 が求めるのは実装 PR の `mergemain.md` と `CLAUDE.md` のみ）。
     -   **人の答え:** 一時的な検証用 PR を使う（推奨案）。
     -   **ADR:** なし。本タスクの検証手順の中で閉じ、ほかのタスクや構成要素を縛らないためである。
--   **設計書 7.3 の実地の確かめを行うタイミング**
+-   **設計書 7.3 の実地の確かめを行うタイミング:**
     -   **決定:** 実装 PR を開いた後・マージの前に人が行い、結果の記録（本書 §9）と ADR-0046 の「結果」の更新を同じ実装 PR に追加する。
     -   **理由:** 実地の確かめには人の操作が要るため、PR 作成前に入れると `/runplan` の途中で止まって自動送信を `hold` にする必要がある。PR 作成後・マージ前に置けば、`/runplan` は文書更新・ガードテスト・`diff` 記録・PR 作成までを一貫して進められる。
     -   **人の答え:** PR を開いた後・マージの前に人が行い、記録と ADR-0046 の更新を同じ PR に足す（推奨案）。
@@ -55,14 +55,14 @@
 
 計画で決めたもの:
 
--   **AC-07・AC-08 の `diff` 検証の形:** 変更箇所が `CLAUDE.md` の 1 箇所と `mergemain.md` の 5 か所に限られ差分が小さいため、一時スクリプト（`_checks/`）ではなく、`requirements_process.md` §4 の記録した差分の読み取り（recorded diff reading）を採る。ADR: なし（本タスクの検証手順の中で閉じるため）。
+-   **AC-07・AC-08 の `diff` 検証の形:** 変更箇所が `CLAUDE.md` の 1 か所と `mergemain.md` の 5 か所に限られ差分が小さいため、一時スクリプト（`_checks/`）ではなく、`requirements_process.md` §4 の記録した差分の読み取り（recorded diff reading）を採る。ADR: なし（本タスクの検証手順の中で閉じるため）。
 -   **実地の確かめの記録の置き場所:** 本書の §9「実地の確かめの記録」に置く。ADR: なし（同上）。
 
 ## 2. 実装ステップ (Implementation Steps)
 
 ### フェーズ 1: 文書・コマンド定義の更新と確かめ
 
-設計書 8 章の優先順位に従い、1 つの PR で実施する。ステップ 1-1・1-2 は `/runplan` が実行して PR を開き、ステップ 1-3 は PR 作成後・マージ前に人が実行して同じ PR に追加する。
+設計書 8 章の優先順位に従い、1 つの PR で実施する。ステップ 1-1・1-2 は `/runplan` が実行してチェックボックスを `[x]` にし、ステップ 1-3 のチェックボックスは `[ ]` のまま実装 PR を開く。ステップ 1-3 は PR 作成後・マージ前に人が実行して同じ PR に追加する。
 
 #### ステップ 1-1: コマンド定義・CLAUDE.md・ADR-0046・Antigravity アダプタの更新
 
@@ -87,24 +87,26 @@
 -   **作業内容:**
     -   [ ] `make test` と `make lint` を実行し、既存のガードテスト（`cmd/mergepr/docs_test.go`、`cmd/yt2column/settings_test.go`、`cmd/yt2column/skills_docs_test.go`、`cmd/yt2column/fixpr_docs_test.go` を含む）がすべて通ることを確かめる（設計書 3.5・7.1）
     -   [ ] `requirements_process.md` §4「`diff` verification」の固定コマンドで AC-07（`CLAUDE.md`）と AC-08（`.claude/commands/mergemain.md`）の差分を取得し、本書の §8 の各 Diff record に記入してコミットする
-    -   [ ] PR を開く前に、`requirements_process.md` §4「Rechecking a record」の手順で Diff record が最新コミットと一致することを照合する
+    -   [ ] PR を開く前に、`requirements_process.md` §4「Rechecking a record」の手順で Diff record を最新コミットと照合し、一致することを確かめる
 -   **完了条件:**
     -   `make test && make lint` が通り、§8 の Diff record が照合に合格していること。
 
 #### ステップ 1-3: 実地の確かめと ADR-0046 の仕上げ（PR 作成後・マージ前に人が実施）
 
 -   **変更対象ファイル:**
-    -   `docs/tasks/0130_mergemain_ext_install/03_implementation_plan.md`（§9 の記入）
+    -   `docs/tasks/0130_mergemain_ext_install/03_implementation_plan.md`（§9 の記入、およびステップ 1-3・§6 のチェックボックス更新）
     -   `docs/dev/adr/0046-chief-of-staff.md`（「結果」の更新）
 -   **作業内容:**
-    -   [ ] `main` 上で `extension/`・`README.md`・`README.en.md`・`docs/dev/guides/development.md` のいずれかを変更した直近コミットの親から一時ブランチを切り、ステップ 1-1 の実装コミットを当てて draft の検証用 PR を作成する
-    -   [ ] 利用者の設定（`~/.claude/settings.json` や worktree の `.claude/settings.local.json`）に `make` に当たる許可規則がないことと、worktree に `extension/node_modules` がないことを確かめたうえで、新規または `/clear` 直後の auto mode の Claude Code pane で `/mergemain <検証用 PR>` のみを実行する（設計書 7.3）
-    -   [ ] Claude Code のセッション記録（transcript）で `make ext-install` が許可の確認なしに実際に走ったこと、`make ext-check` まで通ったこと、報告に「拡張の依存」の項目が出たことを確かめる。あわせて、確認を出すモードで人が断ったときの振る舞い（および判定が拒んだ回があれば手順 9 への遷移）を観測する（設計書 7.3）
-    -   [ ] 観測結果を本書の §9「実地の確かめの記録」に記入し、設計書 3.4 に従い `docs/dev/adr/0046-chief-of-staff.md` の「結果」（`0046-chief-of-staff.md:515`）の「未確認である」の文と人が断ったときの振る舞いの文を更新して、実装 PR にコミット・push する（確認が出るか拒まれた場合は、設計書 7.3 に従い設計書と ADR-0046 に戻って方針を決め直す）
+    -   [ ] `main` 上で `extension/`・`README.md`・`README.en.md`・`docs/dev/guides/development.md` のいずれかを変更した直近コミットの親から一時ブランチを切り、実装 PR の `.claude/commands/mergemain.md` と `CLAUDE.md` のみを取り込んでコミットし、draft の検証用 PR を作成する（親コミット以降に `main` 側で `CLAUDE.md` や `mergemain.md` が変わっている場合は、`/mergemain` の手順 5 で `.md` 衝突解消が入ることも想定内とする）
+    -   [ ] 検証用の一時 worktree を作成して一時ブランチをチェックアウトし、利用者の設定（`~/.claude/settings.json` や worktree の `.claude/settings.local.json`）に `make` に当たる許可規則がないことと、その worktree に `extension/node_modules` がないことを確かめる（設計書 7.3）
+    -   [ ] まず、確認を出すモード（`default` など）の Claude Code pane で `/mergemain <検証用 PR>` を実行し、`make ext-install` の確認画面で断ったときの振る舞い（エージェントの番が終わるか、および次の入力後に手順 9 で戻して「検査の準備がない」で止まるか）を観測し、検証用 worktree が `<base-head>` に戻り `extension/node_modules` がない状態であることを確かめる（設計書 1.2・7.3）
+    -   [ ] 続いて、新規または `/clear` 直後の auto mode の Claude Code pane で `/mergemain <検証用 PR>` のみを実行し、Claude Code のセッション記録（transcript）で `make ext-install` が許可の確認なしに実際に走ったこと、`make ext-check` まで通ったこと、報告に「拡張の依存」の項目が出たこと（および判定が拒んだ回があれば手順 9 への遷移）を確かめる（設計書 7.3）
+    -   [ ] 観測結果を本書の §9「実地の確かめの記録」に記入し、設計書 3.4 に従い `docs/dev/adr/0046-chief-of-staff.md` の「結果」（`0046-chief-of-staff.md:515`）の「未確認である」の文と人が断ったときの振る舞いの文を更新する。あわせて本計画書のステップ 1-3・§6 のチェックボックスを `[x]` に更新し、実装 PR にコミット・push する（確認が出るか拒まれた場合は、設計書 7.3 に従い設計書と ADR-0046 に戻って方針を決め直す）
+    -   [ ] 実装 PR の説明に、実地の確かめの結果を追記する
     -   [ ] `make test` と `make lint` が通ること、および §8 の Diff record が最新コミットと一致することを確かめる
-    -   [ ] 検証用 PR を閉じ、一時ブランチ（ローカル・リモート）を削除する
+    -   [ ] 検証用 PR を閉じ、検証用の一時 worktree と一時ブランチ（ローカル・リモート）を削除する
 -   **完了条件:**
-    -   auto mode で `make ext-install` が確認なしに実行され `make ext-check` まで通った記録が §9 にあり、ADR-0046 の「結果」が更新され、`make test && make lint` と Diff record の照合が通り、検証用 PR と一時ブランチが削除されていること。
+    -   auto mode で `make ext-install` が確認なしに実行され `make ext-check` まで通った記録が §9 にあり、ADR-0046 の「結果」と実装 PR の説明および本計画書のチェックボックスが更新され、`make test && make lint` と Diff record の照合が通り、検証用 PR・一時 worktree・一時ブランチが削除されていること。
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
@@ -113,14 +115,24 @@
 設計書 8 章の順序どおり、単一フェーズ・単一 PR で進める。
 
 1.  **マイルストーン 1（実装 PR の作成）:** ステップ 1-1（4 文書の更新を 1 コミット）→ ステップ 1-2（`make test && make lint` と AC-07・AC-08 の Diff record 記入）→ 実装 PR の作成。
-2.  **マイルストーン 2（実地の確かめとマージ準備）:** ステップ 1-3（一時的な検証用 PR での実地の確かめ、§9 の記録、ADR-0046「結果」の更新、`make test && make lint` の再確認、検証用 PR・一時ブランチの片付け）→ `/runpr` でのマージ。
+2.  **マイルストーン 2（実地の確かめとマージ準備）:** ステップ 1-3（一時的な検証用 PR での実地の確かめ、§9 の記録、ADR-0046「結果」の更新、実装 PR 説明の追記、`make test && make lint` の再確認、検証用 PR・一時 worktree・一時ブランチの片付け）→ `/runpr` でのマージ。
+
+### 3.2. PR 構成
+
+本計画は単一フェーズであるため、PR マーカーは設けず、1 本の PR で実施する。ステップ 1-1・1-2 を `/runplan` が実行して PR を開き、ステップ 1-3 はマージの前に人が実施して同じ PR に追加する。
+
+**実装モデル要件**: standard+high-review
+
+**判定理由**: ステップ 1-1 は開発ツールの信頼の境界（`CLAUDE.md` の承認、`mergemain.md` の禁止事項・拒否および打ち切り時の戻し手順、`harness-antigravity.md` の昇格一覧）を直接変更する高リスクなステップであり、上位モデルより軽いモデルでは禁止の抜け漏れや承認範囲の意図しない拡大を見落としやすいため。
+
+**自動送信**: auto
 
 ## 4. テスト戦略 (Test Strategy)
 
 -   **単体テスト・ガードテスト:** Go コードの変更はなく、追加する単体テストやテストヘルパーファイルはない（`docs/dev/conventions/test_organization.md` に該当する追加なし）。`make test && make lint` により、既存の文書・設定ガードテスト（`cmd/mergepr/docs_test.go`、`cmd/yt2column/settings_test.go`、`cmd/yt2column/skills_docs_test.go`、`cmd/yt2column/fixpr_docs_test.go`）がすべて通ることを確かめる（設計書 3.5・7.1）。
 -   **結合テスト:** なし（設計書 7.2）。
--   **実地の確かめ:** 設計書 7.3 に従い、ステップ 1-3 で一時的な検証用 PR を用いて auto mode の Claude Code pane で `/mergemain` を実行し、`make ext-install` の確認なし実行（transcript 確認）・`make ext-check` 通過・報告項目・確認拒否時の振る舞いを確かめ、§9 に記録する。Antigravity での実地の確かめは求めず、機会があれば §9 に追記する（設計書 7.3）。
--   **文書の確かめ・`diff` 検証:** 文言の意味は PR レビュー（`manual`）で読む。AC-07・AC-08 の差分限定は §8 の Diff record（recorded diff reading）で検証し、一時スクリプト（`_checks/`）は作らない。
+-   **実地の確かめ:** 設計書 7.3 に従い、ステップ 1-3 で一時的な検証用 PR を用いて実施し、§9 に記録する。確認を出すモード（`default` など）の pane では確認画面で断ったときの振る舞いを確かめ、auto mode の pane では `make ext-install` の確認なし実行（transcript 確認）・`make ext-check` 通過・報告項目を確かめる。Antigravity での実地の確かめは求めず、機会があれば §9 に追記する（設計書 7.3）。
+-   **文書の確かめ・`diff` 検証:** 文言の意味は PR レビュー（`manual`）で読む。AC-07・AC-08 の差分が定められた範囲に限られることは §8 の Diff record（recorded diff reading）で検証し、一時スクリプト（`_checks/`）は作らない。
 -   **後方互換性:** chief が `/mergemain` を送るのはブランチの `mergemain.md` が `origin/main` と同じときに限られるため（要件書 4.4）、本実装が `main` に入った後に取り込まれるブランチから新しい手順が適用される。既存のガードテストと `mergepr` のプロトコル番号（4）は変わらない。
 
 ## 5. リスク管理 (Risk Management)
@@ -132,7 +144,7 @@
 | auto mode の判定が `make ext-install` に確認を出すか拒む | AC-05 を満たせず、chief の自動送信で止まる | ステップ 1-3 でマージ前に実地で確かめる。確認が出るか拒まれた場合はマージせず、設計書 7.3 に従い設計書と ADR-0046 に戻って方針を決め直す |
 | `mergemain.md` の記述が `TestMergemainCommandLinesAreListed` に抵触する | `make test` と CI の `doc-guard` が落ちる | 設計書 1.2・3.5 に従い、`make ext-install` は囲みコードブロックではなく手順 7 の本文に書き、ステップ 1-2 の `make test` で確かめる |
 | ステップ 1-3 の追加コミットで Diff record と乖離する | `/runpr` の PRE_MERGE 照合で止まる | ステップ 1-3 で変えるファイルは本計画書と ADR-0046 のみとする。やむを得ず `CLAUDE.md` または `mergemain.md` を修正した場合は Diff record を取り直す |
-| 検証用 PR や一時ブランチが GitHub に残る | リポジトリに不要な PR・ブランチが残る | ステップ 1-3 の完了条件に検証用 PR のクローズと一時ブランチの削除を含める |
+| 検証用 PR・一時 worktree・一時ブランチが残る | 不要な PR・ブランチ・worktree が残る | ステップ 1-3 の完了条件に検証用 PR のクローズと一時 worktree・一時ブランチの削除を含める |
 
 ### スケジュールリスク
 
@@ -143,7 +155,7 @@
 -   [ ] フェーズ 1 完了
     -   [ ] ステップ 1-1: `mergemain.md`・`CLAUDE.md`・ADR-0046・`harness-antigravity.md` の更新を 1 コミットで完了
     -   [ ] ステップ 1-2: `make test && make lint` 通過、AC-07・AC-08 の Diff record 記入と照合完了、実装 PR 作成
-    -   [ ] ステップ 1-3: 一時的な検証用 PR による実地の確かめ完了、§9 記入、ADR-0046「結果」更新、`make test && make lint` 再確認、検証用 PR・一時ブランチ削除
+    -   [ ] ステップ 1-3: 一時的な検証用 PR による実地の確かめ完了、§9 記入、ADR-0046「結果」更新、実装 PR 説明追記、`make test && make lint` 再確認、検証用 PR・一時 worktree・一時ブランチ削除
 
 ## 7. 完了基準 (Success Criteria)
 
@@ -164,10 +176,10 @@
 | AC-06 | 「解消した」の報告に `make ext-install` を走らせたかどうかを書く | ステップ 1-1、1-3 | `manual` | PR レビューで `.claude/commands/mergemain.md` の手順 10 を読み、ステップ 1-3 の実地の確かめ（§9）で「拡張の依存」項目が出力されることを確認する |
 | AC-07 | `CLAUDE.md` と `mergemain.md` に `make ext-install` の承認を書き、`CLAUDE.md` の差分はその項に限る | ステップ 1-1、1-2 | `manual`, `diff` | `manual`: PR レビューで承認の文言を読む。`diff`: 下の `Diff record (AC-07)`（recorded diff reading、比較対象 `CLAUDE.md`）で差分が `/mergemain` の項に限ることを検証する |
 | AC-08 | 禁止事項から手順 7 の `make ext-install` を外しつつ手順 7 外と別手段を禁じ、`mergemain.md` の差分を 5 か所に限る | ステップ 1-1、1-2 | `manual`, `diff`, `static` | `manual`: PR レビューで禁止事項の 9 を読む。`diff`: 下の `Diff record (AC-08)`（recorded diff reading、比較対象 `.claude/commands/mergemain.md`）で差分が設計書 3.1 の 5 か所に限ることを検証する。`static`: `make test`（`cmd/mergepr/docs_test.go::TestMergemainCommandLinesAreListed`、`TestMergemainNoDirectGitMutation`） |
-| AC-09 | 止まって戻したとき `extension/node_modules` を消さず、それ以外は 0115 AC-28 の状態にする | ステップ 1-1、1-2 | `manual` | PR レビューの変更ファイル一覧で `internal/mergepr/mergemain_restore.go` と `Makefile` を変更していないことを確認する（設計書 4.2・7.5） |
-| AC-10 | ブランチが `Makefile` 等を変えていないとき、変わる既存の無視ファイルは `extension/node_modules` と `make ext-check` の出力に限る | ステップ 1-1、1-2 | `manual` | PR レビューの変更ファイル一覧で `Makefile`・`extension/package.json`・`extension/scripts/check-lockfile.ts` を変更していないことを確認する（設計書 5.2・7.5） |
+| AC-09 | 止まって戻したとき `extension/node_modules` を消さず、それ以外は 0115 AC-28 の状態にする | ステップ 1-1 | `manual` | PR レビューの変更ファイル一覧で `internal/mergepr/mergemain_restore.go` と `Makefile` を変更していないことを確認する（設計書 4.2・7.5） |
+| AC-10 | ブランチが `Makefile` 等を変えていないとき、変わる既存の無視ファイルは `extension/node_modules` と `make ext-check` の出力に限る | ステップ 1-1 | `manual` | PR レビューの変更ファイル一覧で `Makefile`・`extension/package.json`・`extension/scripts/check-lockfile.ts` を変更していないことを確認する（設計書 5.2・7.5） |
 | AC-11 | `make ext-install` 通過後に止まって戻したとき、報告の詳細に 2 点を書く | ステップ 1-1 | `manual` | PR レビューで `.claude/commands/mergemain.md` の手順 10 の「止まった」の記述を読む |
-| （設計書 1.2・3.7） | Antigravity アダプタの昇格可能コマンド一覧に `make ext-install`（定義が指示するときに限る）を 1 項目足す | ステップ 1-1、1-2 | `manual`, `static` | `manual`: PR レビューで `.claude/commands/_lib/harness-antigravity.md` の差分が 4 章の昇格の一覧の 1 項目に限ることを確認する。`static`: `make test`（`cmd/yt2column/skills_docs_test.go`、`cmd/yt2column/fixpr_docs_test.go`） |
+| （設計書 1.2・3.7） | Antigravity アダプタの昇格可能コマンド一覧に `make ext-install`（定義が指示するときに限る）を 1 項目足す | ステップ 1-1、1-2 | `manual`, `static` | `manual`: PR レビューで `.claude/commands/_lib/harness-antigravity.md` の差分が 4 章の昇格の一覧の 1 項目に限ることを確認する。`static`: `make test` で既存のガードテスト（`cmd/yt2column/skills_docs_test.go`、`cmd/yt2column/fixpr_docs_test.go`）が壊れていないことを確認する（非回帰確認） |
 
 Diff record (AC-07):
 
@@ -196,4 +208,4 @@ Diff record (AC-08):
 
 1.  本計画書の PR レビューを受け、`/runpr` で承認（`approved` への更新とマージ）を行う。
 2.  `/runplan 0130` を実行し、ステップ 1-1・1-2 を実施して実装 PR を作成する。
-3.  実装 PR のマージ前に人がステップ 1-3（実地の確かめ、§9 の記録、ADR-0046「結果」の更新）を実施し、検証用 PR と一時ブランチを片付けたうえで `/runpr` でマージする。
+3.  実装 PR のマージ前に人がステップ 1-3（実地の確かめ、§9 の記録、ADR-0046「結果」の更新、実装 PR 説明の追記）を実施し、検証用 PR・一時 worktree・一時ブランチを片付けたうえで `/runpr` でマージする。
