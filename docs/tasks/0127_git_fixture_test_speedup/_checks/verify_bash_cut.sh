@@ -91,7 +91,7 @@ run_traced() { # sha script marker trace mode_expr run_re
   git switch --quiet --detach "$sha"
   instrument_script "$script" "$marker" "$trace" "$mode_expr"
   local rc=0
-  go test -tags test -count=1 -run "$run_re" ./cmd/yt2column > "$trace.out" 2>&1 || rc=$?
+  env -u "$optin_var" go test -tags test -count=1 -run "$run_re" ./cmd/yt2column > "$trace.out" 2>&1 || rc=$?
   git checkout -- "$script"
   if [ "$rc" -ne 0 ]; then
     tail -n 40 "$trace.out" >&2
@@ -110,8 +110,8 @@ if want_check rr-lines; then
   run_traced "$after" "$rr_script" "unset REVIEW_RECORDS_CLEAN_ENV" "$T/rr-after.trace" '${1:-none}' "$rr_run"
 
   git switch --quiet --detach "$after"
-  part_line=$(grep -n "printf 'PARTIAL\\\\n'" "$rr_script" | cut -d: -f1)
-  miss_line=$(grep -n "printf 'MISSING\\\\n'" "$rr_script" | cut -d: -f1)
+  part_line=$(grep -n "printf 'PARTIAL\\\\n'" "$rr_script" | cut -d: -f1 || true)
+  miss_line=$(grep -n "printf 'MISSING\\\\n'" "$rr_script" | cut -d: -f1 || true)
   [ "$(printf '%s\n' "$part_line" | grep -c .)" -eq 1 ] || die "cannot locate PARTIAL line in $rr_script"
   [ "$(printf '%s\n' "$miss_line" | grep -c .)" -eq 1 ] || die "cannot locate MISSING line in $rr_script"
 
@@ -219,7 +219,7 @@ if want_check optin-all; then
         END { for (i=1;i<=NR;i++) if (!(k[i] in par)) print k[i] }' "$1.pass" |
         awk -v b="/$2/" 'index($0, b) > 0' | LC_ALL=C sort -u > "$3"
     }
-    go test -tags test -count=1 -json -run "$rr_run" ./cmd/yt2column > "$T/def.json" 2> "$T/def.err" || die "default run failed at AFTER"
+    env -u "$optin_var" go test -tags test -count=1 -json -run "$rr_run" ./cmd/yt2column > "$T/def.json" 2> "$T/def.err" || die "default run failed at AFTER"
     env "$optin_var=1" go test -tags test -count=1 -json -run "$rr_run" ./cmd/yt2column > "$T/optin.json" 2> "$T/optin.err" || die "opt-in run failed at AFTER"
     leaves_from "$T/def.json" "path-bash" "$T/def-path.leaves"
     leaves_from "$T/def.json" "bin-bash-3" "$T/def-bin3.leaves"
