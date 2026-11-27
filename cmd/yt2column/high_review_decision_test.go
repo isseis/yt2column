@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/isseis/yt2column/internal/doctestutil"
+	"github.com/isseis/yt2column/internal/snapshottest"
 )
 
 // highReviewDecisionPath is the work tree's copy of the high-review decision
@@ -29,9 +30,26 @@ type hrdFixture struct {
 	mb   string
 }
 
+// hrdFixtureKind is the kind of the shared state every hrdFixture starts
+// from; its value is the commit of origin/main. The key is the three contents
+// the repository holds, so it is built once per combination and copied into
+// each case (TestFixtureSnapshotsMatchRebuilt).
+var hrdFixtureKind = snapshottest.NewKind[string]("hrdFixture", nil)
+
 func newHRDFixture(t *testing.T, bash scriptBash, contextContent, markersPlan, singlePlan string) *hrdFixture {
 	t.Helper()
-	f := &hrdFixture{gitFixture: newGitFixture(t), bash: bash}
+	sn := snapshottest.Load(t, snapshotStore, hrdFixtureKind, []string{contextContent, markersPlan, singlePlan},
+		func(bt *testing.T, dir string) string {
+			return buildHRDBase(bt, dir, contextContent, markersPlan, singlePlan)
+		})
+	return &hrdFixture{gitFixture: newGitFixtureFromSnapshot(t, sn), bash: bash, mb: sn.Value()}
+}
+
+// buildHRDBase builds the repository of an hrdFixture under dir and returns
+// the commit of origin/main.
+func buildHRDBase(t *testing.T, dir, contextContent, markersPlan, singlePlan string) string {
+	t.Helper()
+	f := newGitFixtureIn(t, dir)
 	f.write(rrSource, "m0\n")
 	if contextContent != "" {
 		f.write(contextDocRepoPath, contextContent)
@@ -43,10 +61,10 @@ func newHRDFixture(t *testing.T, bash scriptBash, contextContent, markersPlan, s
 		f.write(rrSinglePlan, singlePlan)
 	}
 	f.commit("init origin/main")
-	f.mb = f.rev("HEAD")
-	f.git("update-ref", "refs/remotes/origin/main", f.mb)
+	mb := f.rev("HEAD")
+	f.git("update-ref", "refs/remotes/origin/main", mb)
 	f.git("switch", "-q", "-c", "feature")
-	return f
+	return mb
 }
 
 func (f *hrdFixture) head() string {

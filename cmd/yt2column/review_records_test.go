@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/isseis/yt2column/internal/doctestutil"
+	"github.com/isseis/yt2column/internal/snapshottest"
 )
 
 // reviewRecordsPath is the work tree's copy of the review records script.
@@ -103,6 +104,7 @@ func (f *rrFixture) sibling() *rrFixture {
 	f.t.Helper()
 	s := newRRFixtureWithContext(f.t, f.form, f.contextDoc)
 	s.forms, s.bash = f.forms, f.bash
+	s.noScripts = f.noScripts
 	return s
 }
 
@@ -131,24 +133,55 @@ func newRRFixture(t *testing.T, form string) *rrFixture {
 	return newRRFixtureWithContext(t, form, doctestutil.ReadDoc(t, contextPath))
 }
 
-// newRRFixtureWithContext builds a fixture repository whose origin/main holds
+// rrBase is the value of an rrFixture's shared state: the two commits of main.
+type rrBase struct{ m0, mb string }
+
+// rrFixtureKind is the kind of the shared state every rrFixture starts from.
+// Its key is the content of _context.md (the plan samples are fixed files of
+// the test binary), so the repository is built once per content and copied
+// into each case. A copy is the same state a rebuild gives
+// (TestFixtureSnapshotsMatchRebuilt).
+var rrFixtureKind = snapshottest.NewKind[rrBase]("rrFixture", nil)
+
+// newRRFixtureWithContext returns a fixture repository whose origin/main holds
 // contextDoc at .claude/commands/_context.md (omitted when contextDoc is "").
 func newRRFixtureWithContext(t *testing.T, form, contextDoc string) *rrFixture {
 	t.Helper()
-	f := &rrFixture{gitFixture: newGitFixture(t), form: form, contextDoc: contextDoc}
+	sn := loadRRBase(t, contextDoc)
+	base := sn.Value()
+	return &rrFixture{
+		gitFixture: newGitFixtureFromSnapshot(t, sn),
+		form:       form, contextDoc: contextDoc, m0: base.m0, mb: base.mb,
+	}
+}
+
+// loadRRBase returns the shared state of an rrFixture with contextDoc.
+func loadRRBase(t *testing.T, contextDoc string) snapshottest.Snapshot[rrBase] {
+	t.Helper()
+	return snapshottest.Load(t, snapshotStore, rrFixtureKind, []string{contextDoc}, func(bt *testing.T, dir string) rrBase {
+		return buildRRBase(bt, dir, contextDoc)
+	})
+}
+
+// buildRRBase builds the repository of an rrFixture under dir: main has two
+// commits (m0, then mb, which adds the plans and _context.md when provided),
+// refs/remotes/origin/main points at mb, and the branch feature forks from it.
+func buildRRBase(t *testing.T, dir, contextDoc string) rrBase {
+	t.Helper()
+	f := newGitFixtureIn(t, dir)
 	f.write(rrSource, "m0\n")
 	f.commit("m0")
-	f.m0 = f.rev("HEAD")
+	m0 := f.rev("HEAD")
 	f.write(rrMarkersPlan, rrPlanSample(t, "markers.md"))
 	f.write(rrSinglePlan, rrPlanSample(t, "single.md"))
 	if contextDoc != "" {
 		f.write(contextDocRepoPath, contextDoc)
 	}
 	f.commit("add the plans")
-	f.mb = f.rev("HEAD")
-	f.git("update-ref", "refs/remotes/origin/main", f.mb)
+	mb := f.rev("HEAD")
+	f.git("update-ref", "refs/remotes/origin/main", mb)
 	f.git("switch", "-q", "-c", "feature")
-	return f
+	return rrBase{m0: m0, mb: mb}
 }
 
 func (f *rrFixture) head() string {
@@ -294,7 +327,22 @@ type rrCase struct {
 	setup   func(f *rrFixture) []string
 	env     func(f *rrFixture) []string
 	want    func(f *rrFixture) []string
+	prep    rrPrep
 }
+
+// rrPrep says how a case's setup runs. The zero value shares it: setup makes
+// only git commits, so it is built once per test function, mode, and case,
+// and each bash copies the result; a setup that runs the script (a probe)
+// fails the case instead of running in an arbitrary bash.
+type rrPrep int
+
+const (
+	// rrPrepShared builds the setup once and copies it for each bash.
+	rrPrepShared rrPrep = iota
+	// rrPrepPerBash runs the setup in each bash's case: it runs the script
+	// (requireProbe), so its result depends on the bash.
+	rrPrepPerBash
+)
 
 var rrAll = func(*rrFixture) []string { return []string{"ALL"} }
 
@@ -795,35 +843,121 @@ func rrConfigBranch(f *rrFixture) []string {
 	return rrNone(f, rrMarkersPlan)
 }
 
+// rrConfigGroup is the shared state of one group of configuration scenarios:
+// the branch the build made, the arguments it returned, and the commits of
+// the fixture it started from. The repository is under "state/repo" of the
+// snapshot's directory.
+type rrConfigGroup struct {
+	args   []string
+	m0, mb string
+}
+
+// rrConfigGroupKind is the kind of the group branches. A group's branch does
+// not depend on the bash, so both bashes of a test share it. The scripts are
+// not run while it is built (the build only makes commits).
+var rrConfigGroupKind = snapshottest.NewKind("rrConfigBranch", func(g rrConfigGroup) rrConfigGroup {
+	g.args = slices.Clone(g.args)
+	return g
+})
+
+// rrBeforeRun is the shared result of the script run without any setting, in
+// one bash: which bash ran it, and what it printed and returned.
+type rrBeforeRun struct {
+	bashPath string
+	run      scriptRun
+}
+
+// rrBeforeRunKind is the kind of the runs without a setting. Its key holds
+// the bash's name, so each bash runs the script itself once per group.
+var rrBeforeRunKind = snapshottest.NewKind[rrBeforeRun]("rrConfigBeforeRun", nil)
+
+// loadRRConfigGroup returns the shared branch of the group groupKey names,
+// built by build over a copy of the rrFixture state with contextDoc.
+func loadRRConfigGroup(t *testing.T, groupKey []string, form string, forms crossCheckForms, contextDoc string,
+	build func(*rrFixture) []string,
+) snapshottest.Snapshot[rrConfigGroup] {
+	t.Helper()
+	return snapshottest.Load(t, snapshotStore, rrConfigGroupKind, groupKey, func(bt *testing.T, dir string) rrConfigGroup {
+		f := newRRBuildFixture(bt, dir, form, forms, contextDoc)
+		args := build(f)
+		return rrConfigGroup{args: args, m0: f.m0, mb: f.mb}
+	})
+}
+
+// newRRBuildFixture returns the fixture a shared state is built on: a copy of
+// the rrFixture state with contextDoc under "state" of dir, with the builder's
+// own HOME and TMPDIR, and marked so that it cannot run a script.
+func newRRBuildFixture(bt *testing.T, dir, form string, forms crossCheckForms, contextDoc string) *rrFixture {
+	bt.Helper()
+	bs := loadRRBase(bt, contextDoc)
+	stateDir := filepath.Join(dir, "state")
+	bs.CopyTo(bt, stateDir)
+	b := bs.Value()
+	return &rrFixture{
+		gitFixture: &gitFixture{t: bt, home: bt.TempDir(), tmp: bt.TempDir(), repo: filepath.Join(stateDir, "repo"), noScripts: true},
+		form:       form, forms: forms, contextDoc: contextDoc, m0: b.m0, mb: b.mb,
+	}
+}
+
+// rrFixtureOverGroup returns a fixture of t over a copy of the group branch.
+func rrFixtureOverGroup(t *testing.T, sn snapshottest.Snapshot[rrConfigGroup], form string, forms crossCheckForms, contextDoc string) *rrFixture {
+	t.Helper()
+	g := sn.Value()
+	return &rrFixture{
+		gitFixture: newGitFixtureFromSnapshotAt(t, sn, "state/repo"),
+		form:       form, forms: forms, contextDoc: contextDoc, m0: g.m0, mb: g.mb,
+	}
+}
+
 // checkConfigScenarios runs mode on the branch build makes, in a fixture
-// newFixture returns, without and with each git configuration scenario in
-// each scope, and checks that the setting changes plain git's output but not
-// the script's. base is the start of the output without the setting; a
-// branch on which the script prints another output fails the scenario, so a
-// branch that no longer exercises the reading does not pass with nothing
-// compared.
-func checkConfigScenarios(t *testing.T, name string, bash scriptBash, newFixture func(*testing.T) *rrFixture,
+// started from the real _context.md, without and with each git configuration
+// scenario in each scope, and checks that the setting changes plain git's
+// output but not the script's. base is the start of the output without the
+// setting; a branch on which the script prints another output fails the
+// scenario, so a branch that no longer exercises the reading does not pass
+// with nothing compared.
+//
+// The branch is built once per group and copied into each scenario. The run
+// without a setting is made once per group and bash, in that bash, on a copy
+// of the branch; each scenario compares its own run in its own bash with it.
+func checkConfigScenarios(t *testing.T, name string, bash scriptBash, form string, forms crossCheckForms,
 	mode string, build func(*rrFixture) []string, base func(*rrFixture) string,
 ) {
 	t.Helper()
+	contextDoc := doctestutil.ReadDoc(t, contextPath)
+	top, _, _ := strings.Cut(t.Name(), "/")
+	groupKey := []string{top, name, mode}
+	// The branch is requested here, before the scenarios start, so a scenario
+	// never holds a parallel slot while it waits for it.
+	group := loadRRConfigGroup(t, groupKey, form, forms, contextDoc, build)
 	for _, scope := range []string{"repository", "global"} {
 		for _, s := range rrConfigScenarios() {
 			t.Run(name+"/"+scope+"/"+s.name, func(t *testing.T) {
 				t.Parallel()
-				f := newFixture(t)
-				args := append([]string{mode}, build(f)...)
-				want := f.runScript(bash, reviewRecordsPath, args, scriptRunOptions{})
-				if prefix := base(f); want.code != 0 || !strings.HasPrefix(want.stdout, prefix) {
-					t.Fatalf("without %s the script did not print %q, so the scenario checks nothing: %v", s.name, prefix, want)
+				before := snapshottest.Load(t, snapshotStore, rrBeforeRunKind, append(slices.Clone(groupKey), bash.name),
+					func(bt *testing.T, dir string) rrBeforeRun {
+						f := rrFixtureOverGroupAt(bt, group, dir, form, forms, contextDoc)
+						args := append([]string{mode}, group.Value().args...)
+						want := f.runScript(bash, reviewRecordsPath, args, scriptRunOptions{})
+						if prefix := base(f); want.code != 0 || !strings.HasPrefix(want.stdout, prefix) {
+							bt.Fatalf("without a setting the script did not print %q, so the scenarios of %s checks nothing: %v", prefix, name, want)
+						}
+						return rrBeforeRun{bashPath: bash.path, run: want}
+					}).Value()
+				if before.bashPath != bash.path {
+					t.Fatalf("the run without a setting used %s, not this scenario's %s", before.bashPath, bash.path)
 				}
-				before := f.git(s.plain...)
+				f := rrFixtureOverGroup(t, group, form, forms, contextDoc)
+				args := append([]string{mode}, group.Value().args...)
+				want := before.run
+				plainBefore := f.git(s.plain...)
 				file := filepath.Join(f.repo, ".git", "config")
 				if scope == "global" {
 					file = filepath.Join(f.home, ".gitconfig")
 				}
 				f.git("config", "--file", file, s.config[0], s.config[1])
-				if after := f.git(s.plain...); after == before {
-					t.Fatalf("%s does not change plain git's output %q, so the scenario checks nothing", s.name, before)
+				if after := f.git(s.plain...); after == plainBefore {
+					t.Fatalf("%s does not change plain git's output %q, so the scenario checks nothing", s.name, plainBefore)
 				}
 				if got := f.runScript(bash, reviewRecordsPath, args, scriptRunOptions{}); got != want {
 					t.Errorf("with %s set the script printed %v, without it %v", s.name, got, want)
@@ -833,22 +967,57 @@ func checkConfigScenarios(t *testing.T, name string, bash scriptBash, newFixture
 	}
 }
 
+// rrFixtureOverGroupAt is rrFixtureOverGroup for a build: the copy is made
+// under dir, which the snapshot being built keeps, and runs git as bt.
+func rrFixtureOverGroupAt(bt *testing.T, sn snapshottest.Snapshot[rrConfigGroup], dir, form string, forms crossCheckForms, contextDoc string) *rrFixture {
+	bt.Helper()
+	copyDir := filepath.Join(dir, "state")
+	sn.CopyTo(bt, copyDir)
+	g := sn.Value()
+	return &rrFixture{
+		gitFixture: &gitFixture{t: bt, home: bt.TempDir(), tmp: bt.TempDir(), repo: filepath.Join(copyDir, "state", "repo")},
+		form:       form, forms: forms, contextDoc: contextDoc, m0: g.m0, mb: g.mb,
+	}
+}
+
 // runRRCases executes every case in cases under mode and bash, checking
 // fail-closed output failOut (exit 1 with diagnostic) when want is nil and
 // exact stdout (exit 0) otherwise.
 func runRRCases(t *testing.T, bash scriptBash, mode, failOut, form string, forms crossCheckForms, cases []rrCase) {
 	t.Helper()
+	seen := make(map[string]struct{}, len(cases))
+	for _, c := range cases {
+		// Two cases with one name would share one prepared state, and the
+		// later one would pass without its own setup being checked.
+		if _, dup := seen[c.name]; dup {
+			t.Fatalf("two cases are named %q", c.name)
+		}
+		seen[c.name] = struct{}{}
+	}
+	top, _, _ := strings.Cut(t.Name(), "/")
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			var f *rrFixture
+			contextDoc := doctestutil.ReadDoc(t, contextPath)
 			if c.context != nil {
-				f = newRRFixtureWithContext(t, form, c.context(t))
-			} else {
-				f = newRRFixture(t, form)
+				contextDoc = c.context(t)
 			}
-			f.forms, f.bash = forms, bash
-			args := append([]string{mode}, c.setup(f)...)
+			var f *rrFixture
+			var setupArgs []string
+			switch c.prep {
+			case rrPrepPerBash:
+				f = newRRFixtureWithContext(t, form, contextDoc)
+				f.forms, f.bash = forms, bash
+				setupArgs = c.setup(f)
+			case rrPrepShared:
+				sn := loadRRCase(t, []string{top, mode, c.name, contextDoc}, c, form, forms, contextDoc)
+				f = rrFixtureOverGroup(t, sn, form, forms, contextDoc)
+				f.bash = bash
+				setupArgs = sn.Value().args
+			default:
+				t.Fatalf("case %q has an unknown preparation kind %d", c.name, c.prep)
+			}
+			args := append([]string{mode}, setupArgs...)
 			var opts scriptRunOptions
 			if c.env != nil {
 				opts.extraEnv = c.env(f)
@@ -867,6 +1036,24 @@ func runRRCases(t *testing.T, bash scriptBash, mode, failOut, form string, forms
 		})
 	}
 }
+
+// loadRRCase returns the shared prepared state of the case c: a copy of the
+// rrFixture state with contextDoc on which c.setup ran once.
+func loadRRCase(t *testing.T, key []string, c rrCase, form string, forms crossCheckForms, contextDoc string) snapshottest.Snapshot[rrConfigGroup] {
+	t.Helper()
+	return snapshottest.Load(t, snapshotStore, rrCaseKind, key, func(bt *testing.T, dir string) rrConfigGroup {
+		bf := newRRBuildFixture(bt, dir, form, forms, contextDoc)
+		return rrConfigGroup{args: c.setup(bf), m0: bf.m0, mb: bf.mb}
+	})
+}
+
+// rrCaseKind is the kind of the prepared state of a shared case; it reuses
+// rrConfigGroup's shape (the arguments setup returned and the fixture's
+// commits).
+var rrCaseKind = snapshottest.NewKind("rrCase", func(g rrConfigGroup) rrConfigGroup {
+	g.args = slices.Clone(g.args)
+	return g
+})
 
 // TestReviewRecordsCoverage runs the coverage mode of the review records
 // script on fixture repositories: the commits judged, the checks of a
@@ -889,6 +1076,7 @@ func runRRCases(t *testing.T, bash scriptBash, mode, failOut, form string, forms
 // core.abbrev and i18n.logOutputEncoding reach a command the script runs
 // (git log for the listed subjects).
 func TestReviewRecordsCoverage(t *testing.T) {
+	t.Parallel()
 	for _, tool := range []string{"git", "awk", "tr"} {
 		if _, err := exec.LookPath(tool); err != nil {
 			t.Fatalf("%s is not on PATH: %v", tool, err)
@@ -899,7 +1087,7 @@ func TestReviewRecordsCoverage(t *testing.T) {
 		t.Run(bash.name, func(t *testing.T) {
 			t.Parallel()
 			runRRCases(t, bash, "coverage", "PARTIAL\n", form, crossCheckForms{}, coverageCases())
-			checkConfigScenarios(t, "git config", bash, func(t *testing.T) *rrFixture { return newRRFixture(t, form) },
+			checkConfigScenarios(t, "git config", bash, form, crossCheckForms{},
 				"coverage", rrConfigBranch, func(*rrFixture) string { return "PARTIAL 1\n" })
 		})
 	}
@@ -990,6 +1178,7 @@ func rrUnreviewedConfigBranch(f *rrFixture) []string {
 // differences. Each case runs with each bash scriptBashes returns, and the
 // configuration scenarios run on rrUnreviewedConfigBranch.
 func TestReviewRecordsUnreviewed(t *testing.T) {
+	t.Parallel()
 	form := seenRangeForm(t)
 	forms := readCrossCheckForms(t)
 	var cases []rrCase
@@ -1015,16 +1204,11 @@ func TestReviewRecordsUnreviewed(t *testing.T) {
 		}
 	}
 	cases = append(cases, unreviewedCases()...)
-	fixture := func(t *testing.T) *rrFixture {
-		f := newRRFixture(t, form)
-		f.forms = forms
-		return f
-	}
 	for _, bash := range scriptBashes(t) {
 		t.Run(bash.name, func(t *testing.T) {
 			t.Parallel()
 			runRRCases(t, bash, "unreviewed", "PARTIAL\n", form, forms, cases)
-			checkConfigScenarios(t, "git config", bash, fixture, "unreviewed", rrUnreviewedConfigBranch,
+			checkConfigScenarios(t, "git config", bash, form, forms, "unreviewed", rrUnreviewedConfigBranch,
 				func(*rrFixture) string { return "PARTIAL 2\n" })
 		})
 	}
@@ -1034,6 +1218,7 @@ func TestReviewRecordsUnreviewed(t *testing.T) {
 // cross-check, and its compatibility alias fable fails with no output, so a
 // caller reads it as the failure of its mode.
 func TestReviewRecordsMode(t *testing.T) {
+	t.Parallel()
 	for _, bash := range scriptBashes(t) {
 		for _, mode := range [][]string{nil, {"Coverage"}, {"Unreviewed"}, {"Cross-check"}, {"Fable"}} {
 			f := newRRFixture(t, "")
@@ -1642,7 +1827,7 @@ func crossCheckCases() []rrCase {
 		// Fable then sees the whole PR from the new merge-base, whether the
 		// record started at the old merge-base or at a branch commit. Without
 		// x the same layout waits for the merge check, so the record is read.
-		{name: "work then merge after a record from the merge-base", setup: func(f *rrFixture) []string {
+		{name: "work then merge after a record from the merge-base", prep: rrPrepPerBash, setup: func(f *rrFixture) []string {
 			f.requireProbe("MERGE 1", func(s *rrFixture) {
 				recorded(s)
 				s.mainMerge("m2")
@@ -1652,7 +1837,7 @@ func crossCheckCases() []rrCase {
 			f.mainMerge("m2")
 			return launch(f)
 		}, want: rrMissing("refs/remotes/origin/main")},
-		{name: "work then merge after a record from a branch commit", setup: func(f *rrFixture) []string {
+		{name: "work then merge after a record from a branch commit", prep: rrPrepPerBash, setup: func(f *rrFixture) []string {
 			build := func(s *rrFixture, x bool) {
 				c0 := s.work("c0")
 				c1 := s.work("c1")
@@ -1669,7 +1854,7 @@ func crossCheckCases() []rrCase {
 		// A record from the old merge-base whose END is after the merge
 		// holds main's commits, so it is not read; the same record from the
 		// new merge-base is.
-		{name: "record from the old merge-base ending after the merge", setup: func(f *rrFixture) []string {
+		{name: "record from the old merge-base ending after the merge", prep: rrPrepPerBash, setup: func(f *rrFixture) []string {
 			f.requireProbe("VALID", func(s *rrFixture) {
 				s.work("c1")
 				merge := s.mainMerge("m2")
@@ -1683,7 +1868,7 @@ func crossCheckCases() []rrCase {
 		// The names of a merge check record. N is not a merge commit: were
 		// the name counted, rule 4 would cover x, as it does when N is a
 		// confirmable merge commit.
-		{name: "merge check naming a commit that is not a merge", setup: func(f *rrFixture) []string {
+		{name: "merge check naming a commit that is not a merge", prep: rrPrepPerBash, setup: func(f *rrFixture) []string {
 			build := func(s *rrFixture, n func() string) {
 				recorded(s)
 				named := n()
@@ -1713,7 +1898,7 @@ func crossCheckCases() []rrCase {
 		// would cover x by rule 4, as naming the branch's merge does. mm's
 		// first parent is not the merge-base either, so the case holds the
 		// branch condition and the first-parent condition together.
-		{name: "merge check naming a merge outside the branch", setup: func(f *rrFixture) []string {
+		{name: "merge check naming a merge outside the branch", prep: rrPrepPerBash, setup: func(f *rrFixture) []string {
 			build := func(s *rrFixture, outside bool) {
 				tree := s.rev(s.mb + "^{tree}")
 				m2 := strings.TrimSpace(s.git("commit-tree", tree, "-p", s.mb, "-m", "m2"))
@@ -1737,7 +1922,7 @@ func crossCheckCases() []rrCase {
 		// is origin/main, but its first is behind the merge-base B. Named
 		// with a seen range over x, it would cover x by rule 4, as a merge
 		// whose first parent is a branch commit does.
-		{name: "merge check naming a merge whose first parent is behind the merge-base", setup: func(f *rrFixture) []string {
+		{name: "merge check naming a merge whose first parent is behind the merge-base", prep: rrPrepPerBash, setup: func(f *rrFixture) []string {
 			build := func(s *rrFixture, branchFirst bool) {
 				tree := s.rev(s.mb + "^{tree}")
 				b := strings.TrimSpace(s.git("commit-tree", tree, "-p", s.mb, "-m", "B"))
@@ -1941,6 +2126,7 @@ func rrFableMergeConfigBranch(f *rrFixture) []string {
 // setting reaches today: they fail only when the cross-check mode starts
 // reading through a porcelain command.
 func TestReviewRecordsCrossCheck(t *testing.T) {
+	t.Parallel()
 	form := seenRangeForm(t)
 	forms := readCrossCheckForms(t)
 	realContext := doctestutil.ReadDoc(t, contextPath)
@@ -2050,14 +2236,9 @@ func TestReviewRecordsCrossCheck(t *testing.T) {
 				})
 			})
 
-			fixture := func(t *testing.T) *rrFixture {
-				f := newRRFixture(t, form)
-				f.forms = forms
-				return f
-			}
-			checkConfigScenarios(t, "git config", bash, fixture, "cross-check", rrFableConfigBranch,
+			checkConfigScenarios(t, "git config", bash, form, forms, "cross-check", rrFableConfigBranch,
 				func(f *rrFixture) string { return "MISSING " + f.rev("HEAD~1") + "\n" })
-			checkConfigScenarios(t, "git config with a merge", bash, fixture, "cross-check", rrFableMergeConfigBranch,
+			checkConfigScenarios(t, "git config with a merge", bash, form, forms, "cross-check", rrFableMergeConfigBranch,
 				func(*rrFixture) string { return "VALID\n" })
 		})
 	}
@@ -2068,6 +2249,7 @@ func TestReviewRecordsCrossCheck(t *testing.T) {
 // across both bash 3.2 and bash 4+ (representative VALID, MISSING, and
 // fail-closed cases).
 func TestReviewRecordsFableAlias(t *testing.T) {
+	t.Parallel()
 	form := seenRangeForm(t)
 	forms := readCrossCheckForms(t)
 	cases := []rrCase{

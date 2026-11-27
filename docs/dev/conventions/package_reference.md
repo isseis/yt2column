@@ -145,6 +145,7 @@ add a kind here or to widen one of these definitions.
 | `internal/maketestutil` | Checks the make targets that run charged integration tests: `RunTarget`, `CheckChargedTarget`, `RecordedNames`, `FirstLineIs`. |
 | `internal/pricing/testutil` | Formats a stage's estimated cost as one log line: `CostSummary`. |
 | `internal/publisher/testutil` | Test double `FakePublisher` for the publisher and the pipeline. |
+| `internal/snapshottest` | Test-only. Builds an expensive directory state once per test process and copies it into each test's own directory, so tests do not rebuild it: `Store`, `Kind`, `Load`, `Snapshot.CopyTo`, `Snapshot.Value`. |
 | `internal/transcript/testutil` | Test fixtures the other packages share: `FakeTranscriptSource` and fake `yt-dlp` scripts. |
 | `internal/udstest` | Short directories and listeners for tests that use Unix domain sockets: `Dir`, `Listen`. |
 | `internal/writer/testutil` | Test double `FakeArticleWriter` for `writer.ProgressWriter`, and `DefaultOptions`, the default `writer.Options` a run uses. |
