@@ -88,6 +88,7 @@ chief は人の代わりに判断せず、人が選んだ答えと決まった�
     -   判定し、確かめるのは、手元と PR の前提、衝突の分類、戻してよい状態か、push の前の状態である。push の前には、push の先が PR の head ブランチであること、merge コミットの親が決まった 2 つで、取り込む `main` が `mergemain-begin` の取得した値であり、push のときに `origin` から取り直した `main` の祖先であること、merge コミットが git の自動の合わせと違うのが `.md` と、ブランチが merge base から番号を変えた道具のプロトコル番号の行だけであり、番号を変えたすべての道具の行の値が取り込む `main` の値 + 1 であることを確かめる。
     -   エージェントに残すのは、`.md` の両側の変更を保てるかの判断と解消、README と ADR の規則の当てはめと文書の `--protocol` の書き換え、merge コミットの作成、検査、報告だけである。
     -   戻すサブコマンドのほかは `.claude/settings.json` で確認なしに許す。戻すサブコマンドと、`mergepr` のほかのサブコマンドは、今のとおり確認を出す。戻すサブコマンドは、`/mergemain` が始めた取り込みと人が手で始めた取り込みを見分けられないので、戻すたびに人が確かめる。
+    -   `make ext-install` には `.claude/settings.json` の規則を足さない。chief が人に尋ねずに送る `/mergemain` の pane は auto mode で走るものとし、`make ext-install` に確認を出すかは auto mode の判定に任せる。判定の拠り所は、CLAUDE.md と `mergemain.md` に書いた承認である。`make ext-install` が auto mode の判定に拒まれたときと失敗したときは、別の道で依存を入れず、作業の前の状態に戻して止まる。人が確認の画面で断ったときも、人の後の指示によらず、戻して止まる。規則を足さないのは、`make` が作業ツリーの `Makefile` を走らせるためである。規則を足すと、リポジトリのすべてのセッションで、書き換えた `Makefile` も確認なしに走りうる（[0130 設計書](../../tasks/0130_mergemain_ext_install/02_architecture.md)「設計の際に決めたこと（2026-11-27）」）。
     -   理由：人に尋ねずに送るコマンドが、手順の読み違いで範囲の外の衝突を解消したり、範囲の外の変更を push したり、人の作業を消したりしないためである（ADR-0014）。push のときに `main` を取り直すのは、取り込みの ref をエージェントが書き換えられるので、ref との一致だけでは `origin/main` の履歴の外のコミットを親にした merge コミットが通るためである。プロトコル番号の行の読み方がすでに `mergepr` にあり、新しい道具を足すと、入れる手順、利用ガイド、番号、許可の規則がすべて新しく要る（[0115 設計書](../../tasks/0115_chief_conflict_resolution/02_architecture.md)「設計の際に決めたこと（2026-11-19）」）。
 -   解消の自動送信は、1 ラウンドに 1 件までとし、どれかの workspace で `/mergemain` を実行中のエージェントがあるときは送らない。
     -   理由：`main` へのマージ 1 つで多くの PR が同時にコンフリクトになると、その数だけ検査が同時に走り、時間に敏感なテストが落ちて「解消できず」が増え、作成の排他も長く持つことになるためである（[0115 要件定義書](../../tasks/0115_chief_conflict_resolution/01_requirements.md)「設計の際に見直したこと（2026-11-20）」）。
@@ -344,6 +345,8 @@ chief は人の代わりに判断せず、人が選んだ答えと決まった�
     -   理由：ブランチの側で依存が古くなった場合を見落とす。また、依存の有無と新しさを推し量る規則が増える（同上）。
 -   止まって戻すときに、`/mergemain` が入れた `extension/node_modules` を消す。
     -   理由：`mergemain-restore` が行わない削除が要る。git が無視するファイルなので、戻した後の追跡しているファイルには影響しない（同上）。
+-   `.claude/settings.json` の `allow` に `Bash(make ext-install)` を足し、確認なしに走らせる。
+    -   理由：`allow` の Bash の規則が確認なしに許すのは、渡されたコマンドを走らせないと確かめた語だけである（`cmd/yt2column/settings_test.go` の `unpromptedWords`）。`make` は作業ツリーの `Makefile` を走らせるので、この前提に反する。規則はリポジトリのすべてのセッションに当たるので、ほかのセッションで書き換えた `Makefile` も確認なしに走りうる（[0130 設計書](../../tasks/0130_mergemain_ext_install/02_architecture.md)「設計の際に決めたこと（2026-11-27）」）。
 
 ### 記録
 
@@ -509,6 +512,7 @@ chief は人の代わりに判断せず、人が選んだ答えと決まった�
 -   `mergepr` のプロトコル番号を上げるので、`/mergemain` を使うには `main` から `mergepr` を入れ直す必要がある。入れた `mergepr` が古いと、`/mergemain` は前提が合わないとして止まる。`mergemain-` のサブコマンドを変えるたびに `mergepr` の番号が上がり、入れ直すまでマージも止まる。確認なしに許すサブコマンドが、取り消せない `merge` と同じバイナリに入る。
 -   送り先の表に行を足す PR のマージの後は、入れ直す前の古い chief が表を拒み、`make install-chief` で入れ直すまで、マージの後の自動送信も含めて何も送らない。
 -   `/mergemain` は、拡張の検査が要る取り込みでは、PR のブランチが `extension/package.json`・ロックファイル・`extension/.npmrc`・`check-lockfile`・`Makefile` を変えていても `make ext-install` を走らせるので、レビューされていない規則で依存を取得しうる。ブランチが `Makefile` か `extension/package.json` のスクリプトを変えれば、`--ignore-scripts` の守りも外れうる。取得したパッケージのコードは `make ext-check` が走らせる。今の `make test` と `make ext-check` も merge の後のツリーのコードを利用者の権限で走らせており、増えるのは、ブランチが選んだリポジトリの外のパッケージの取得と実行なので、この危険を受け入れる。`npm ci` は `/mergemain` を始める前からある `extension/node_modules` を作り直し、止まって戻した後もそれを残す。そのため、残した依存は、元の状態に戻したブランチのロックファイルと食い違いうる。人は報告を読んで入れ直す（0130 要件定義書「要件定義の際に決めたこと（2026-11-26）」）。
+-   `make ext-install` を確認なしに走らせられるかは、auto mode の判定が許すかどうかにかかっている。この前提は、0130 の実装の PR で、人が auto mode の pane で打つ `/mergemain` で確かめるまで、未確認である。判定はモデルによるので、確かめた時点で許していても、後で拒みうる。拒まれると、`/mergemain` は「検査の準備がない」で止まる。止まる向きに倒れるので、依存が入らないまま検査が通ることはない。chief が送る pane を auto mode で動かさない利用者のもとでは確認が出て、人がその pane で答える。人が確認を断ると、Claude Code はエージェントの番を終えると想定しており、`/mergemain` は戻さずに止まって人の次の入力を待ち、その入力を受けてから戻して止まる。また、規則を足さなくても、auto mode で動くほかのセッションは、CLAUDE.md の承認を根拠に `make ext-install` を確認なしに走らせうる。`npm ci` などをじかに走らせることは `mergemain.md` の禁止だけで止め、`deny` の規則は足さない（[0130 設計書](../../tasks/0130_mergemain_ext_install/02_architecture.md)「設計の際に決めたこと（2026-11-27）」）。
 -   worktree ごとの `.claude/settings.local.json` は git が無視するので、そこで足した許可や hooks は、自動で送った `/mergemain` にも当たる。
 -   実装計画書の PR マーカーの欄が 1 つ増え、`/mkplan` はその値を決める。
 -   計画書のステップは、受け入れる 3 つの書き方のどれかで書く必要がある。ほかの書き方の計画書は、マージの後に要確認で止まり、自動送信されない。`/mkplan` と規約は、この書き方を指示していない。
@@ -592,3 +596,4 @@ chief は人の代わりに判断せず、人が選んだ答えと決まった�
 - 2026-11-24 chief_architecture.md が持つ話題の一覧に「テストのしかた」を加えた。同じ PR でその文書を直す PR の範囲が、標本の足し方やガードテストの照合先を変える PR にも広がる（[0117 設計書](../../tasks/0117_chief_architecture_doc/02_architecture.md)「実装の後に決めたこと（2026-11-24）」）
 - 2026-11-26 コンフリクトの項目を人が選んで送る `/mergemain` を、項目の ID（PR の番号、head、段階）で縛り、取得の後に条件を読み直して送ることにした。この項目の通知は head ごとに 2 回までとし、0088 の AC-58 の例外とした。`chief detail` が、`/mergemain` の merge コミットで変わった head の控えの引き継ぎのために、PR の head のブランチ 1 つだけを `refs/remotes/origin/<ブランチ>` へ取ることを、chief の読み取りの承認に含め、表示だけに使うことにした。引き継いだ報告は、引き継ぎ元の head を添えて示す（`chief detail` の出力の `report_inherited_from`）。人が選んだ送信の選択肢は、試みのあった round に限り選べなくし、入力欄の文字は選んだ後の断りで守る（[0115 実装計画書](../../tasks/0115_chief_conflict_resolution/03_implementation_plan.md) のステップ 4-3）
 - 2026-11-26 `/mergemain` の承認に、拡張の検査が要る取り込みでの `make ext-install` を足し、依存の有無によらず毎回走らせることにした。PR のブランチが依存の取得の規則を変えていても走らせることを、残る危険として受け入れ、止まって戻した後も入れた `extension/node_modules` を残すことにした（[0130 要件定義書](../../tasks/0130_mergemain_ext_install/01_requirements.md)「要件定義の際に決めたこと（2026-11-26）」）
+- 2026-11-27 `/mergemain` の `make ext-install` を確認なしに走らせるために `.claude/settings.json` の規則を足さず、chief が送る pane の auto mode の判定に任せることにした。拒まれたときと失敗したときは、別の道で依存を入れずに戻して止まる。判定が許すことは実装の PR で実地に確かめる（[0130 設計書](../../tasks/0130_mergemain_ext_install/02_architecture.md)「設計の際に決めたこと（2026-11-27）」）
