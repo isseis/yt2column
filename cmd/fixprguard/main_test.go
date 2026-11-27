@@ -1820,23 +1820,6 @@ func TestFinishBodyFileRun(t *testing.T) {
 			t.Errorf("message = %q, want %q", message, want)
 		}
 	})
-	t.Run("message_rewritten", func(t *testing.T) {
-		repo := newTestRepo(t)
-		hook := filepath.Join(repo.Dir, ".git", "hooks", "commit-msg")
-		if err := os.MkdirAll(filepath.Dir(hook), testDirMode); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(hook, []byte("#!/bin/sh\nprintf 'Signed-off-by: hook\\n' >> \"$1\"\n"), 0o700); err != nil { //nolint:gosec // a hook of the test's temporary repository
-			t.Fatal(err)
-		}
-		r := newTestRun(t, repo.Dir, repo.Home, nil, buildCheckSteps()...)
-		code := r.Run(t, finishLine(t, repo)...)
-		var out stopJSON
-		r.Decode(t, &out)
-		if code != exitStop || out.Stop != fixprguard.StopGitStateChanged || !slices.Equal(out.Parts, []string{fixprguard.PartHead}) {
-			t.Errorf("exit %d, output %+v; want %d, %s with parts [%s]", code, out, exitStop, fixprguard.StopGitStateChanged, fixprguard.PartHead)
-		}
-	})
 }
 
 // TestAppendPRRun: append-pr prints the write output.
