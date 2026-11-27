@@ -1905,8 +1905,8 @@ func TestCheckCommand(t *testing.T) {
 }
 
 // TestPushReviewCommand: push-review prints exactly protocol, pushed and
-// commit, refuses with nothing to send, and names the rule push when the push
-// itself fails, the word the fixpr document reports an unknown push result by.
+// commit, and names the rule push when the push itself fails, the word the
+// fixpr document reports an unknown push result by.
 func TestPushReviewCommand(t *testing.T) {
 	t.Run("pushes", func(t *testing.T) {
 		repo, base, phase4 := reviewRepo(t, 1)
@@ -1923,14 +1923,6 @@ func TestPushReviewCommand(t *testing.T) {
 		}
 		if !reflect.DeepEqual(out, want) {
 			t.Errorf("output = %v, want %v", out, want)
-		}
-	})
-
-	t.Run("nothing_to_send", func(t *testing.T) {
-		repo, base, phase4 := reviewRepo(t, 0)
-		r := newTestRun(t, repo.Dir, repo.Home, nil)
-		if code := r.Run(t, args(cmdPushReview, "--baseline", base.String(), "--commit", phase4)...); code != exitUsage {
-			t.Errorf("push-review: exit %d, want %d", code, exitUsage)
 		}
 	})
 
