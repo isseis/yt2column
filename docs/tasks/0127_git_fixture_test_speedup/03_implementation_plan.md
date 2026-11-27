@@ -146,7 +146,8 @@ PR-1・PR-2 の計測（7.1 節）の結果を受けて、人が決めたもの:
 -   **`internal/mergepr` の PR-1 の割合 1.076 は、ぶれとして受け入れる:** PR-1 は `internal/mergepr` を変えておらず、6 回の値が 40.4〜45.9 秒に散らばったため。
 -   **比較のスクリプトは、名前の中のコミットの短い ID を置き換えて比べる:** `TestBaseCommitReadsTheRefItself` の末端の名前（`feat-1-g<12 桁の 16 進数>`）が実行ごとに変わり、名前の集まりが同じになりえないため。比べるときだけ置き換え、単独の選択では元の名前を使う。スクリプトを変えるので、7.4 節の壊し方の確認と、PR-1 の比較の実行を、やり直す（計測のスクリプト、テストのコード、製品コードは変わらないので、計測、`make coverage-compare`、`make test`、`make lint` の PR-1 の記録は、AFTER `8bb968e5` のものが、タスクのディレクトリの下だけが異なる今の head でも有効である）。
 -   **`internal/mergepr` の目標を 80% 以下にする:** PR-2 のステップ 7-5 後の計測で、`internal/mergepr` は PR-2 単独で 0.737（40.886 秒 → 30.140 秒）と 75% 以下に達したが、PR-1 でぶれとして受け入れた 1.076 との積が 0.793 となり 75% を超えた。要件書の「実装の際に決めたこと（2026-11-27）」のとおり、人が F-001 の積の判定式を維持したまま `internal/mergepr` の目標（AC-02）を 80% 以下に改めることを決めた。
--   **PR-3（冗長テストの削減）を追加する:** PR-2 マージ後の PR-3 として、冗長テスト候補（Part 1: C1〜C11、Part 2: M1〜M13）の検証と削減をフェーズ 8 に追加する。人が決めた方針: C1 は既定を 40 末端サブセットとしオプトイン環境変数で全件実行を残す、C6 は削除する、6 件の git config シナリオは維持する、`mergemain_test.go` に main 側のみリネームする 1 ケースを追加する。ADR: なし（このタスクのテスト構成と進め方である）。
+-   **PR-3（冗長テストの削減）を追加する:** PR-2 マージ後の PR-3 として、冗長テスト候補（Part 1: C1〜C11、Part 2: M1〜M13）の検証と削減をフェーズ 8 に追加する。人が決めた方針: C1 は既定を構文・行網羅の代表サブセットとしオプトイン環境変数で全件実行を残す、C6 は削除する、6 件の git config シナリオと global シナリオは維持する、`mergemain_test.go` に main 側のみリネームする 1 ケースを追加する。ADR: なし（このタスクのテスト構成と進め方である）。
+-   **PR-3 の bash 行カバレッジ方式と `compare.sh` の PR-3 対応（2026-11-27）:** ステップ 8-1 の現行コード検証を受け、人が次を決めた。(1) `_checks/verify_bash_cut.sh` の行カバレッジ一致は、各 bash でのスクリプト全体の実行行集合（`line`）一致＋`review-records.sh` の全 mode 分岐と `fail()` 分岐への到達とし、C3 は `unreviewed()` 自身の引数検証 3 件（`HEAD of another form`・`PLAN of another form`・`too many arguments`）を残して 53 件削減とし、C1〜C11 を計画どおり実施する。(2) 行記録は bash 3.2 に `BASH_XTRACEFD` がなく `set -x` が `stderr` を汚すため、両スクリプトとも `env -i` 後の `set -T`＋`trap DEBUG`（`TMPDIR` 外のトレースファイルへ追記）とする。(3) PR-3 の AC-09・AC-11 検証は `_checks/compare.sh` に PR-3 用オプション（`CHECK_SKIP_AC04=1`）を足して行い、変更後に `compare.sh` の壊し確認をやり直す。ADR: なし（タスク 0127 の一時スクリプトの検証方式である）。
 
 ADR: なし（このタスクの目標と手順である）。
 
@@ -339,27 +340,26 @@ ADR: なし（このタスクの目標と手順である）。
 
 ### フェーズ 8: 冗長テストの検証と削減（Part 1・Part 2）
 
-- [ ] **ステップ 8-1**: 削減候補（1.6 節の C1〜C11・M1〜M13）の仮説検証と bash 3 サブセットの再導出
-    - 現在のブランチ上の `review-records.sh`・`high-review-decision.sh`・`internal/mergepr` とテストコードに照らし、各候補が成り立つかを検証して成り立たない候補を除外する
-    - `review-records.sh` の現在のコードから、bash 3.2 依存構文をすべて踏む 40 末端サブセットを再導出する
-- [ ] **ステップ 8-2**: bash テスト削減の検証用一時スクリプトを作成し壊し確認する
-    - 追加するファイル: `docs/tasks/0127_git_fixture_test_speedup/_checks/verify_bash_cut.sh`
-    - 機能: (1) 一時コピーした `review-records.sh` と `high-review-decision.sh`（`env -i` 後の `set -x`＋`PS4='+${LINENO}: '`）で削減前後の `(mode, line)` 集合が各 bash（`high-review-decision.sh` は bash 4 以上だけ）で一致することを確認、(2) 残す代表ケースに対するミューテーション（`-c i18n.logOutputEncoding` 削除、`widen` 変更、`fable` 削除、C2 の縮小版を採る場合は Unreviewed・CrossCheck の `-c` の上書きの削除）が失敗することを確認する。`GIT_CONFIG_GLOBAL` の削除は、`-c i18n.logOutputEncoding=UTF-8` が global より優先して出力が変わらず検出できないので、ミューテーションに含めない。行カバレッジは設定シナリオを見分けられないので、設定シナリオの削除は (2) の壊し確認でだけ確かめる
-    - 7 章に、この一時スクリプトの記録の節（スクリプト、確かめる内容、流した回数と結果）を置く（7.3 節の `measure.sh` の記録と同じ形）
-    - 壊し確認を行い、7 章の一時スクリプト記録に書く
-- [ ] **ステップ 8-3**: Part 1（`review_records_test.go`・`high_review_decision_test.go`・`harness_mapping_cases_test.go`・`test_helpers_bash.go`）の検証済み冗長ケースを削減する
-    - C1: 既定は 40 末端サブセットとし、オプトイン環境変数で bash 3 全件実行を残す
+- [x] **ステップ 8-1**: 削減候補（1.6 節の C1〜C11・M1〜M13）の仮説検証と bash 3 サブセットの再導出
+    - 現在のブランチ上の `review-records.sh`・`high-review-decision.sh`・`internal/mergepr` とテストコードに照らし、各候補が成り立つかを検証して成り立たない候補を除外する（C3 は `unreviewed()` 自身の引数検証 3 件を残して 53 件削減、C6 は現行 5 件、M13 は `TestMergemainBeginPremisesAndNothingToTakeIn/ok` への統合で成立）
+    - `review-records.sh` の現在のコードから、bash 3.2 依存構文と実行可能 bash 行をすべて踏む代表サブセットを再導出する
+- [x] **ステップ 8-2**: bash テスト削減の検証用一時スクリプトを作成し壊し確認する
+    - 追加・変更するファイル: `docs/tasks/0127_git_fixture_test_speedup/_checks/verify_bash_cut.sh`（新規）、`docs/tasks/0127_git_fixture_test_speedup/_checks/compare.sh`（PR-3 用オプション `CHECK_SKIP_AC04=1` 追加）
+    - `verify_bash_cut.sh` の機能: (1) 一時コピーした `review-records.sh` と `high-review-decision.sh`（`env -i` 後の `unset *_CLEAN_ENV` 行に `set -T`＋`trap DEBUG` を 1 行で追記し、`TMPDIR` 外のトレースファイルへ記録して行番号と `stderr` を変えない）で、各 bash（`high-review-decision.sh` は bash 4 以上だけ）における削減前後のスクリプト全体の実行行集合（`line`）が一致し、`review-records.sh` の全 mode 分岐と `fail()` 分岐に到達することを確認、(2) 残す代表ケースに対するミューテーション（`-c i18n.logOutputEncoding` 削除、`widen` 変更、`fable` 削除）が失敗することを確認、(3) `YT2COLUMN_TEST_BASH3_ALL=1` で `bin-bash-3` の末端集合が `path-bash` と一致すること（AC-13 (3)）を確認する。`GIT_CONFIG_GLOBAL` の削除は、`-c i18n.logOutputEncoding=UTF-8` が global より優先して出力が変わらず検出できないので、ミューテーションに含めない。行カバレッジは設定シナリオを見分けられないので、設定シナリオの削除は (2) の壊し確認でだけ確かめる
+    - 7.8 節にこの一時スクリプトの記録を置き、壊し確認を行って記録する。`compare.sh` の変更後、7.4 節の壊し確認もやり直す
+- [x] **ステップ 8-3**: Part 1（`review_records_test.go`・`high_review_decision_test.go`・`harness_mapping_cases_test.go`・`test_helpers_bash.go`）の検証済み冗長ケースを削減する
+    - C1: 既定は構文・行網羅の代表サブセットとし、オプトイン環境変数 `YT2COLUMN_TEST_BASH3_ALL=1` で bash 3 全件実行を残す
     - C2（縮小版）: Coverage の repository シナリオと global の全シナリオ（および将来の porcelain 移行に備える 6 件の git config シナリオ）を残し、Unreviewed・CrossCheck の重複シナリオだけを、ステップ 8-2 の壊し確認で成り立つと確かめられたときに削除する（成り立たなければ削らない）
-    - C6: 削除する（env クリーンアップは mode 分岐前のため Coverage 側で網羅。件数はステップ 8-1 で現行コードに照らして数える）
-    - C3〜C5・C7〜C11: ステップ 8-1 で検証が成り立ったものを削除・整理する
+    - C6: 削除する（現行 5 件: `HEAD names no commit`・`no origin/main`・`GIT_ variables`・`exported functions`・`BASH_ENV`。env クリーンアップと `load_branch` は Coverage 側で網羅）
+    - C3（53 件、引数検証 3 件は維持）・C4・C5・C7〜C11: ステップ 8-1 で検証が成り立ったものを削除・整理する
     - 削除のまとまり（C1〜C11 の候補ごと）を、削除だけのコミットにし、各コミットの後に `make coverage-compare BASE=<そのコミットの親>`（10 分以上のタイムアウト）を流して、最後の行 `coverage-compare: PASS` までをコミットメッセージと PR の説明に書く（Go の製品コードは変わらないので、これは削除が Go のカバレッジを下げないことの確認にとどまる）
-    - bash スクリプトの行の網羅は `coverage-compare` で見えないので、`verify_bash_cut.sh` を実行して結果を 7 章に記録する（`high_review_decision_test.go` と `harness_mapping_cases_test.go` の削除は、`high-review-decision.sh` の `(mode, line)` 集合の一致で確かめる）
-- [ ] **ステップ 8-4**: Part 2（`internal/mergepr/mergemain_test.go`）の検証済み冗長ケースを削減し、main 側リネームの 1 ケースを追加する
-    - M4・M7 はアサーション移動を別コミットにした上で、各テスト削除は削除のみのコミットにし、`make coverage-compare BASE=<parent>`（10 分以上のタイムアウト）の通過出力と指定の壊し確認（M5/M6/M9/M10）をコミットメッセージと PR 説明に記録する
+    - bash スクリプトの行の網羅は `coverage-compare` で見えないので、`verify_bash_cut.sh` を実行して結果を 7.8 節に記録する（`high_review_decision_test.go` と `harness_mapping_cases_test.go` の削除は、`high-review-decision.sh` の実行行集合の一致で確かめる）
+- [x] **ステップ 8-4**: Part 2（`internal/mergepr/mergemain_test.go`）の検証済み冗長ケースを削減し、main 側リネームの 1 ケースを追加する
+    - M4・M7・M13 はアサーション移動を別コミットにした上で、各テスト削除は削除のみのコミットにし、`make coverage-compare BASE=<parent>`（10 分以上のタイムアウト）の通過出力と指定の壊し確認（M5/M6/M9/M10）をコミットメッセージと PR 説明に記録する
     - M5 の削除枠の代わりに、main 側のみファイルリネームする 1 ケースを追加する
-- [ ] **ステップ 8-5**: PR-3 の計測とグリーンゲート確認・記録
+- [x] **ステップ 8-5**: PR-3 の計測とグリーンゲート確認・記録
     - `measure.sh` で PR-3 の BASE と AFTER を測り、PR-3 の割合と、PR-1・PR-2・PR-3 の積（このタスクの割合）を 7.1 節に記録する。判定は AC-01・AC-02（`cmd/yt2column` は `0.758 × r ≤ 0.80`、すなわち PR-3 の割合 r が約 1.055 以下、`internal/mergepr` は `0.793 × r ≤ 0.80`、すなわち r が約 1.008 以下）で行う。超えたときは、きれいな作業ツリーで測り直し、それでも超えるときは作業を止め、要件書の決定の変更をレビューに諮る（PR-2 のノイズ 1.076 と 0.826 / 0.976 のように、変えていないパッケージの割合が 1 を超えうるので、すべての測定値を記録する）。PR-1・PR-2 の時点の「AC-01・AC-02 達成」は、PR-3 の後の再判定まで暫定とする
-    - AC-06（`make coverage-compare BASE=<PR-3 の BASE>`）、AC-09（変更範囲）、AC-11（単独選択とシャッフル。代表は、削除の後に残るケースから選び直し、`compare.sh` にはその名前を渡す）、`make test`・`make lint`・`make deadcode` を PR-3 にも実行し、結果を 7 章に記録する。AC-04・AC-05 は、PR-3 では AC-13 に置き換える
+    - AC-06（`make coverage-compare BASE=<PR-3 の BASE>`）、AC-09（変更範囲）、AC-11（単独選択とシャッフル。代表は、削除の後に残るケースから選び直し、`CHECK_SKIP_AC04=1` を付けて `compare.sh` に渡す）、`make test`・`make lint`・`make deadcode` を PR-3 にも実行し、結果を 7 章に記録する。AC-04・AC-05 は、PR-3 では AC-13 に置き換える
 
 ### PR-3 作成ポイント: remove verified redundant test cases in review_records, high_review_decision, and mergemain
 
@@ -367,7 +367,7 @@ ADR: なし（このタスクの目標と手順である）。
 
 **推奨タイトル**: `test(0127): review_records・high_review_decision・mergemain の冗長なテストケースを検証の上で削減する`
 
-**レビュー観点**: 各削除候補（1.6 節の C1〜C11・M1〜M13）の仮説検証の妥当性と、bash 3.2 の 40 末端サブセット＋オプトイン全件実行の網羅性 / `_checks/verify_bash_cut.sh` の `(mode, line)` 行カバレッジ一致（`review-records.sh` と `high-review-decision.sh`）とミューテーション検出および壊し確認（`GIT_CONFIG_GLOBAL` 削除は検出できないので含めない） / `mergemain_test.go` の各削除コミットが削除のみで `make coverage-compare BASE=<parent>` の通過出力と M5/M6/M9/M10 の壊し確認を持つこと / main 側のみファイルリネームする新規ケースの妥当性 / 7 章の計測・検証記録
+**レビュー観点**: 各削除候補（1.6 節の C1〜C11・M1〜M13）の仮説検証の妥当性と、bash 3.2 の構文・行網羅サブセット＋オプトイン全件実行の網羅性 / `_checks/verify_bash_cut.sh` の実行行集合一致・全 mode 分岐到達（`review-records.sh` と `high-review-decision.sh`）とミューテーション検出および壊し確認（`GIT_CONFIG_GLOBAL` 削除は検出できないので含めない） / `mergemain_test.go` の各削除コミットが削除のみで `make coverage-compare BASE=<parent>` の通過出力と M5/M6/M9/M10 の壊し確認を持つこと / main 側のみファイルリネームする新規ケースの妥当性 / 7 章の計測・検証記録
 
 **実装モデル要件**: high
 
@@ -375,10 +375,10 @@ ADR: なし（このタスクの目標と手順である）。
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1202
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
 
@@ -429,7 +429,7 @@ ADR: なし（このタスクの目標と手順である）。
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 2-1 / 2-2 / 2-3 / 3-1 / 3-2 / 3-3 / 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 5-1 / 6-1 / 6-2 / 6-3 / 6-4）
 - [x] PR-2 マージ済み（対象ステップ: 7-1 / 7-2 / 7-3 / 7-4 / 7-5）
-- [ ] PR-3 マージ済み（対象ステップ: 8-1 / 8-2 / 8-3 / 8-4 / 8-5）
+- [x] PR-3 マージ済み（対象ステップ: 8-1 / 8-2 / 8-3 / 8-4 / 8-5）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -452,6 +452,7 @@ ADR: なし（このタスクの目標と手順である）。
 | AC-10 | `manual` | PR のレビューで、ケースが自分の `HOME`・`TMPDIR`（`internal/mergepr` では `HOME`・`XDG_CONFIG_HOME`）を作ることを読む（ステップ 2-1・7-2） |
 | AC-11 | `test` | `_checks/compare.sh` の「単独の選択」と「shuffle」の判定。結果は 7.2 節 |
 | AC-12 | `test` | PR ごとの `make test` と `make lint`。結果は 7.7 節 |
+| AC-13 | `test` | PR-3 の削除コミットごとの `make coverage-compare BASE=<parent>`（7.6 節・各コミットメッセージ）、`_checks/verify_bash_cut.sh` の実行行集合一致・mode 到達・ミューテーション検出・`YT2COLUMN_TEST_BASH3_ALL=1` 末端一致（7.8 節）、および `_checks/measure.sh`・`_checks/compare.sh`（7.1・7.2 節） |
 
 ### 7.1. 計測の記録（AC-01〜AC-03、AC-05）
 
@@ -537,6 +538,45 @@ AFTER round 3 ./internal/mergepr 30.140s
 == medians ==
 ./cmd/yt2column BASE 115.761s AFTER 113.007s ratio 0.976
 ./internal/mergepr BASE 40.886s AFTER 30.140s ratio 0.737
+measure: DONE
+`````
+
+**PR-3（2026-11-28、結果: 通った）**
+
+-   人の答え: 「他の重いプロセスはなく計測を開始してよい」（ほかの重い処理がなく、`chief` の自動送信も停止した状態であることへの確認）
+-   BASE: `0dcdfc0cbeefa68495349c12628a7c6a57232cf5`、AFTER: `abf0ebc69a3b3eb9715d041c0f87b2c1b9332bb1`（AFTER と、この記録のコミットは、タスクのディレクトリの下だけが異なる）
+-   **このタスクの割合（PR-1・PR-2・PR-3 の割合の積）:**
+    -   `cmd/yt2column`: `0.758 × 0.625 = 0.474`（≤ 0.80、AC-01 達成）
+    -   `internal/mergepr`: `0.793 × 0.948 = 0.752`（≤ 0.80、AC-02 達成）
+
+`````text
+== machine ==
+os: Darwin 25.6.0 arm64
+cores: 12
+path-bash: /opt/homebrew/bin/bash 5.3.15(1)-release
+bin-bash: /bin/bash 3.2.57(1)-release
+go: go version go1.27.1 darwin/arm64
+GOMAXPROCS: unset
+BASE: 0dcdfc0cbeefa68495349c12628a7c6a57232cf5
+AFTER: abf0ebc69a3b3eb9715d041c0f87b2c1b9332bb1
+packages: ./cmd/yt2column ./internal/mergepr
+rounds: 3
+== runs ==
+BASE round 1 ./cmd/yt2column 125.617s
+BASE round 1 ./internal/mergepr 47.029s
+AFTER round 1 ./cmd/yt2column 77.984s
+AFTER round 1 ./internal/mergepr 43.133s
+BASE round 2 ./cmd/yt2column 119.531s
+BASE round 2 ./internal/mergepr 43.230s
+AFTER round 2 ./cmd/yt2column 74.727s
+AFTER round 2 ./internal/mergepr 40.979s
+BASE round 3 ./cmd/yt2column 114.496s
+BASE round 3 ./internal/mergepr 39.492s
+AFTER round 3 ./cmd/yt2column 72.792s
+AFTER round 3 ./internal/mergepr 38.710s
+== medians ==
+./cmd/yt2column BASE 119.531s AFTER 74.727s ratio 0.625
+./internal/mergepr BASE 43.230s AFTER 40.979s ratio 0.948
 measure: DONE
 `````
 
@@ -751,6 +791,112 @@ check range: PASS
 compare: PASS
 `````
 
+**PR-3（2026-11-28、結果: `CHECK_SKIP_AC04=1` で通った）**
+
+-   BASE: `0dcdfc0cbeefa68495349c12628a7c6a57232cf5`、AFTER: `abf0ebc69a3b3eb9715d041c0f87b2c1b9332bb1`
+-   中間の名前は 1.3 節の表のうち、C2 で削除した `TestReviewRecordsCrossCheck/path-bash/git_config_with_a_merge/repository/diff.relative` を、残る `TestReviewRecordsCoverage/path-bash/git_config/repository/diff.relative` に替えた 8 つを渡した。
+
+`````text
+BASE: 0dcdfc0cbeefa68495349c12628a7c6a57232cf5
+AFTER: abf0ebc69a3b3eb9715d041c0f87b2c1b9332bb1
+packages: ./cmd/yt2column ./internal/mergepr
+== full runs ==
+full runs: AFTER passed (BASE skipped under CHECK_SKIP_AC04=1)
+AFTER leaves:     1529, AFTER tops:      267
+== names, fail and skip (compare) ==
+names/skip: skipped (CHECK_SKIP_AC04=1)
+check fail: PASS
+== bash 3 leaves ==
+bin-bash-3: skipped (CHECK_SKIP_AC04=1)
+== single selections (AFTER) ==
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCoverage/bin-bash-3/BASH_ENV
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCoverage/path-bash/without__context.md
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsUnreviewed/bin-bash-3/HEAD_of_another_form
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsUnreviewed/path-bash/too_many_arguments
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsMode
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCrossCheck/bin-bash-3/ENTRY_of_another_form
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCrossCheck/path-bash/work_then_merge_after_a_record_from_the_merge-base
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsFableAlias/bin-bash-3/VALID_with_Cross-check_record
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsFableAlias/path-bash/fail-closed_on_missing__context.md
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCallSite
+select ok: github.com/isseis/yt2column/cmd/yt2column TestRecordLinePrefixesDistinct
+select ok: github.com/isseis/yt2column/cmd/yt2column TestRecordCommitsCheckMention
+select ok: github.com/isseis/yt2column/cmd/yt2column TestHighReviewDecision/all-high_agent_coverage/commit_covered_by_both_high_and_non-high_records_is_tainted
+select ok: github.com/isseis/yt2column/cmd/yt2column TestHighReviewDecision/values/unreadable
+select ok: github.com/isseis/yt2column/cmd/yt2column TestHighReviewDecisionCallSite
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainBeginRejectsInvalidPRArg/""
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainBeginRejectsInvalidPRArg/"１"
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainZeroPRStopsBeforeAnything
+select ok: github.com/isseis/yt2column/internal/mergepr TestParseMergemainPRRejectsMalformedValues
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainBeginPremisesAndNothingToTakeIn/GH_REPO_set
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainBeginPremisesAndNothingToTakeIn/untracked_file
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainMergeNoFastForward
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainMergeRefusesIgnoredOverwrite
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainMergeChecksArguments
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainConflictClassification/binary_markdown
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainConflictClassification/tool_file_renamed_with_only_its_declaration_line_in_conflict
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainProtocolUpdateAndRuleFacts/protocol_line_conflict_resolved_to_main_plus_one
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainProtocolUpdateAndRuleFacts/unchanged_tool_not_set
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainReportsADRConflictFacts/branch_number_free
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainReportsADRConflictFacts/same_number_on_both_sides
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainExtCheckHint/English_README
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainExtCheckHint/extension_file
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainRestoreSafeAndRefusesOtherChanges/MERGE_HEAD_is_another_commit
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainRestoreSafeAndRefusesOtherChanges/untracked_file
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushSuccessRejectedAndUnknown/rejected
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushSuccessRejectedAndUnknown/unknown
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushRejectsNonHeadOrForce/PR_head_branch_is_main
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushRejectsNonHeadOrForce/push_command
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushChecksParentsAndMain/PR_head_is_not_the_base_head
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushChecksParentsAndMain/tracked_change
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushRejectsOutOfScope/go_file_changed
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushRejectsOutOfScope/protocol_line_of_a_tool_the_branch_did_not_change
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushChecksProtocolValues/body_of_a_changed_tool_edited
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushChecksProtocolValues/value_the_merge_set
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainBeginMergeRestoreFlow
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainBeginRefusesSubdirectory
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainRefusesOtherMergeDrivers/committed_union_driver
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainRefusesOtherMergeDrivers/push_of_a_union_merge_main's_rule_allows
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainBlockingPathIgnoresLetterCase
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainReadsNoAttributesOutsideTheBaseHead/ignored_.gitattributes_at_merge
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainReadsNoAttributesOutsideTheBaseHead/untracked_.gitattributes_at_push
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainMergeIgnoresConfiguredMergeOptions
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushAfterOriginHasItAsksNoRestore
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushAfterItLandedAsksNoRestore
+select ok: github.com/isseis/yt2column/internal/mergepr TestNewMergemainIgnoresTheCallersGitEnvironment
+check single-first-last: PASS
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCrossCheck/path-bash/fail-closed_context_validation/valid_mapping_table_control
+select ok: github.com/isseis/yt2column/cmd/yt2column TestHighReviewDecision/values/old_sonnet
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCoverage/path-bash/merge_commit_inside_a_seen_range
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCoverage/path-bash/git_config/global/core.abbrev
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCoverage/path-bash/git_config/repository/diff.relative
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainProtocolUpdateAndRuleFacts/protocol_line_conflict_resolved_to_main_plus_one
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainRestoreSafeAndRefusesOtherChanges/other_branch
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushChecksParentsAndMain/merge_in_progress
+check single-middle: PASS
+== shuffle (AFTER) ==
+shuffle run 1 seeds:
+github.com/isseis/yt2column/cmd/yt2column -test.shuffle 1795793555093563000
+github.com/isseis/yt2column/internal/mergepr -test.shuffle 1795793554830544000
+shuffle run 2 seeds:
+github.com/isseis/yt2column/cmd/yt2column -test.shuffle 1795793632949902000
+github.com/isseis/yt2column/internal/mergepr -test.shuffle 1795793632711856000
+check shuffle: PASS
+== changed files (BASE..AFTER) ==
+cmd/yt2column/harness_mapping_cases_test.go
+cmd/yt2column/high_review_decision_test.go
+cmd/yt2column/review_records_test.go
+cmd/yt2column/test_helpers_bash.go
+docs/tasks/0127_git_fixture_test_speedup/01_requirements.md
+docs/tasks/0127_git_fixture_test_speedup/02_architecture.md
+docs/tasks/0127_git_fixture_test_speedup/03_implementation_plan.md
+docs/tasks/0127_git_fixture_test_speedup/_checks/compare.sh
+docs/tasks/0127_git_fixture_test_speedup/_checks/verify_bash_cut.sh
+internal/mergepr/mergemain_test.go
+check range: PASS
+compare: PASS
+`````
+
 ### 7.3. 一時スクリプトの記録（`_checks/measure.sh`）
 
 -   **スクリプト:** `docs/tasks/0127_git_fixture_test_speedup/_checks/measure.sh`。BASE と AFTER を交互に取り出して計測の条件のコマンドを 3 回ずつ流し、パッケージごとの時間、中央値、割合と、機械の情報を出す（設計書 7.5）。AC-01・AC-02・AC-03 を確かめる。
@@ -769,7 +915,7 @@ compare: PASS
     -   実行の合否: `CHECK_PKGS=./nonexistent` → `FAIL: go test failed at BASE round 1`（1）。`CHECK_RUN` が何も選ばない → `FAIL: cannot read the time of ./internal/strictjson at BASE round 1`（1）
     -   機械の情報: コアの数の読み取りを空にした（写したスクリプトで） → `FAIL: cannot read the core count`（1）
     -   元のブランチへの復帰: ブランチへの切り替えを外した（写したスクリプトで） → `STOP: not on the original branch`（1）。その後、手でブランチに戻した
--   **実行の記録:** PR-1 と PR-2 の実行は 7.1 節に置いた（出力の全体と 2 つのコミットの ID）。
+-   **実行の記録:** PR-1・PR-2・PR-3 の実行は 7.1 節に置いた（出力の全体と 2 つのコミットの ID）。
 
 ### 7.4. 一時スクリプトの記録（`_checks/compare.sh`）
 
@@ -785,19 +931,19 @@ compare: PASS
 -   **壊し方の確認:** 各判定が少なくとも 1 つの壊し方で失敗することを確かめる（ステップ 6-3）。
 -   **予定の実行:** 7.3 節と同じ時点と人で実行する。
 -   **テスト:** コミットしない。
--   **壊し方の記録:** 確かめたコミット: `db4e85006b1bddcedeace681aa651faf1b419976`（1.5 節の名前の比べ方を足し、中間の名前の判定を「パッケージの全部の末端のうち、最初でも最後でもない」に直した後のスクリプトで、壊し方の確認を全部やり直した。結果は前回と同じで、壊さない実行は `compare: PASS`）。作業ツリーの外に写したスクリプトに壊し方を入れるか、引数・環境変数で入力を替えて流した（`CHECK_PKGS=./cmd/yt2column`、`CHECK_RUN` と `CHECK_TOPS` で `TestReviewRecordsFableAlias` と `TestHighReviewDecisionCallSite` に狭めた。狭めた実行は記録しない）。どの壊し方も、作業ツリーに残していない。
-    -   名前の集まり: AFTER の末端の名前を 1 行消した → `check names: FAIL`（終了コード 1）
-    -   `fail`: AFTER の `fail` の事象を 1 件足した → `check fail: FAIL`（1）
-    -   `skip`: AFTER の `skip` の集まりに 1 件足した → `check skip: FAIL`（1）
-    -   bash 3 の末端: 狭めた実行では、4 つの関数のうち 1 つにしか末端がないので、そのままでは判定が失敗する。そこで、写したスクリプトの対象の関数の並びを `TestReviewRecordsFableAlias` 1 つに替えて、壊さない実行は `check bin-bash-3: PASS`。名前の `bin-bash-3` を `bin-bash-9` に替えた → `check bin-bash-3: FAIL`（1）
-    -   単独の選択: `-run` の式を 1 要素ごとに壊した → `select FAILED` が 3 件、`check single-first-last: FAIL`（1）。BASE にない最上位の名前を渡した → `TestNoSuchTop has no leaf in BASE`、`check single-first-last: FAIL`（1）
-    -   中間の名前: パッケージの最初の末端（`TestHighReviewDecisionCallSite`）を渡した → `is the first or the last leaf of`、BASE にない名前を渡した → `is not in BASE`、名前を渡さない → `no middle name given`、いずれも `check single-middle: FAIL`（1）。壊さない実行（中間の名前 1 つ）は `compare: PASS`（0）
-    -   shuffle: `-shuffle=on` を外した → シードの行がなく `check shuffle: FAIL`（1）
+-   **壊し方の記録:** 確かめたコミット: `6649ffc4649bb94a689ed3ad30daea7db57bbc62`（PR-3 用オプション `CHECK_SKIP_AC04=1` を足した後のスクリプトで、全判定の壊し確認をやり直した。壊さない実行は通常モード・`CHECK_SKIP_AC04=1` モードとも `compare: PASS`）。作業ツリーの外に写したスクリプトに壊し方を入れるか、引数・環境変数で入力を替えて流した（`CHECK_PKGS=./cmd/yt2column`、`CHECK_RUN` と `CHECK_TOPS` で `TestReviewRecordsFableAlias` と `TestHighReviewDecisionCallSite` に狭めた。狭めた実行は記録しない）。どの壊し方も作業ツリーに残していない。
+    -   名前の集まり: AFTER の末端の名前を 1 行消した → `check names: FAIL (1 differing names)`（終了コード 1）
+    -   `fail`: `CHECK_SKIP_AC04=1` で AFTER の `fail` の事象を 1 件足した → `check fail: FAIL (fail events present)`（1）
+    -   `skip`: AFTER の `skip` の集まりに 1 件足した → `check skip: FAIL (skip sets differ)`（1）
+    -   bash 3 の末端: 写したスクリプトの対象の関数の並びを `TestReviewRecordsFableAlias` 1 つに替えて、壊さない実行は `check bin-bash-3: PASS`。名前の `bin-bash-3` を `bin-bash-9` に替えた → `check bin-bash-9: FAIL`（1）
+    -   単独の選択: `CHECK_SKIP_AC04=1` で AFTER にない最上位の名前 `TestNoSuchTop` を渡した → `select FAILED: TestNoSuchTop has no leaf in AFTER`、`check single-first-last: FAIL`（1）
+    -   中間の名前: `CHECK_SKIP_AC04=1` でパッケージの最初の末端（`TestHighReviewDecisionCallSite`）を渡した → `middle FAILED: TestHighReviewDecisionCallSite is the first or the last leaf of github.com/isseis/yt2column/cmd/yt2column`、`check single-middle: FAIL`（1）。名前を渡さない → `middle FAILED: no middle name given`、`check single-middle: FAIL`（1）
+    -   shuffle: `-shuffle=on` を `-count=1` に替えた → `shuffle run 1: expected 1 seed lines, read 0`、`check shuffle: FAIL`（1）
     -   差分の範囲: 一覧に `README.md` を足した → `range FAILED: README.md`、`check range: FAIL`（1）
-    -   `go test` の失敗: `CHECK_PKGS=./nonexistent` → `STOP: go test failed at BASE`（1）
-    -   作業ツリー: 追跡されていないファイルを置いた → `STOP: the work tree is not clean`（1）
-    -   元のブランチへの復帰: ブランチへの切り替えを外した → `STOP: not on the original branch`（1）。その後、手でブランチに戻した
--   **実行の記録:** PR-1 と PR-2 の実行は 7.2 節に置いた（出力の全体と 2 つのコミットの ID）。PR-1 の中間の名前は 1.3 節の表の `cmd/yt2column` の 5 つ、PR-2 の中間の名前は `internal/mergepr` の 3 つ（`TestMergemainProtocolUpdateAndRuleFacts/protocol_line_conflict_resolved_to_main_plus_one`、`TestMergemainRestoreSafeAndRefusesOtherChanges/other_branch`、`TestMergemainPushChecksParentsAndMain/merge_in_progress`）である。
+    -   `go test` の失敗: `CHECK_PKGS=./nonexistent` → `compare: STOP: go test failed at AFTER`（1）
+    -   作業ツリー: 追跡されていないファイルを置いた → `compare: STOP: the work tree is not clean`（1）
+    -   元のブランチへの復帰: ブランチへの切り替えを外した → `compare: STOP: not on the original branch`（1）。その後、手でブランチに戻した
+-   **実行の記録:** PR-1・PR-2・PR-3 の実行は 7.2 節に置いた（出力の全体と 2 つのコミットの ID）。PR-1 の中間の名前は 1.3 節の表の `cmd/yt2column` の 5 つ、PR-2 の中間の名前は `internal/mergepr` の 3 つ（`TestMergemainProtocolUpdateAndRuleFacts/protocol_line_conflict_resolved_to_main_plus_one`、`TestMergemainRestoreSafeAndRefusesOtherChanges/other_branch`、`TestMergemainPushChecksParentsAndMain/merge_in_progress`）、PR-3 の中間の名前は `CHECK_SKIP_AC04=1` で渡した 8 つ（C2 で削除した 1 つを `TestReviewRecordsCoverage/path-bash/git_config/repository/diff.relative` に差し替え）である。
 
 ### 7.5. 前提の検査の確かめ（AC-07）
 
@@ -846,6 +992,26 @@ no compared function lost coverage
 coverage-compare: PASS
 `````
 
+**PR-3（2026-11-28）** 削除専用コミット 3 本（`77b83957`・`882fb0b2`・`abf0ebc6`）の個別比較および PR-3 全体（BASE=`0dcdfc0cbeefa68495349c12628a7c6a57232cf5`、HEAD=`abf0ebc69a3b3eb9715d041c0f87b2c1b9332bb1`）がいずれも 1 回流して通った。
+
+-   Part 1 削除コミット 1（C4・C5・C8・C9、コミット `77b83957`、BASE=`f7ce1729ee0cea9d6b3cd3ad2d45b2ed9f66dc80`、tree `8cc9846b7e0e12191b95fbe114fc3d7a68e27829`）: `tests base 1850 head 1850`、`functions base 2354 head 2354`、`no compared function lost coverage`、`coverage-compare: PASS`
+-   Part 1 削除コミット 2（C2・C3・C6・C7・C10・C11、コミット `882fb0b2`、BASE=`77b83957467026a51ef5ae011a5e62a51e9e8aa4`、tree `3bff833d0d38a09f10a11289c06609aea3e8a371`）: `tests base 1850 head 1850`、`functions base 2354 head 2354`、`no compared function lost coverage`、`coverage-compare: PASS`
+-   Part 2 削除コミット（M1〜M13、コミット `abf0ebc6`、BASE=`fae73f658ffb2a4e0bc8207fae703e497dcaeda0`、tree `6a71a7a3b1deb1604a168fd7339fc68473967fd3`）: `tests base 1850 head 1848`、`functions base 2354 head 2354`、`no compared function lost coverage`、`coverage-compare: PASS`
+-   PR-3 全体（AC-06、実行したコミット `abf0ebc69a3b3eb9715d041c0f87b2c1b9332bb1`）:
+
+`````text
+target    make coverage-compare BASE="0dcdfc0cbeefa68495349c12628a7c6a57232cf5"
+base      0dcdfc0cbeefa68495349c12628a7c6a57232cf5
+head      abf0ebc69a3b3eb9715d041c0f87b2c1b9332bb1 tree 6a71a7a3b1deb1604a168fd7339fc68473967fd3
+toolchain go1.27.1
+tests     base 1850 head 1848
+files     base 196 head 196
+functions base 2354 head 2354
+deleted   0
+no compared function lost coverage
+coverage-compare: PASS
+`````
+
 ### 7.7. テストと lint（AC-12）
 
 （`/runplan` が書く。PR ごとに、実行したコミットと、`make test`・`make lint` の終了コード）
@@ -853,6 +1019,56 @@ coverage-compare: PASS
 **PR-1（2026-11-27）** 実行したコミット: `8bb968e5c28f44bafd2a3811d190e2fdac2a72ac`。`make test` は終了コード 0、`make lint` は終了コード 0（`0 issues.`）。
 
 **PR-2（2026-11-27）** 実行したコミット: `cdd92b731ea27f7a3de6e211acade5f9486e1e47`。`make test` は終了コード 0、`make lint` は終了コード 0（`0 issues.`）。
+
+**PR-3（2026-11-28）** 実行したコミット: `abf0ebc69a3b3eb9715d041c0f87b2c1b9332bb1`。`make test` は終了コード 0、`make lint` は終了コード 0（`0 issues.`）、`make deadcode` は終了コード 0（出力なし）。
+
+### 7.8. 一時スクリプトの記録（`_checks/verify_bash_cut.sh`）
+
+-   **スクリプト:** `docs/tasks/0127_git_fixture_test_speedup/_checks/verify_bash_cut.sh`。BASE と AFTER で一時的に計装した `review-records.sh` と `high-review-decision.sh`（`env -i` 後の `set -T`＋`trap DEBUG` で `TMPDIR` 外のトレースファイルへ記録）を使ってテストを走らせ、各 bash でのスクリプト全体の実行行集合（`line`）一致・全 mode 分岐と `fail()` 分岐への到達・代表ケースへのミューテーション検出・`YT2COLUMN_TEST_BASH3_ALL=1` 時の `bin-bash-3` 末端集合一致を確かめる。AC-13 (2)(3) を確かめる。
+-   **判定:**
+    -   作業ツリーに変更がないこと
+    -   **実行行集合一致（`review-records.sh`・`path-bash`）:** BASE と AFTER で `path-bash` が実行した `review-records.sh` の行集合が一致し、全 mode 分岐と `fail()` 分岐に到達すること
+    -   **実行行集合一致（`review-records.sh`・`bin-bash-3`）:** `/bin/bash` が 3.x の機械で、BASE と AFTER（既定サブセット）で `bin-bash-3` が実行した `review-records.sh` の行集合が一致し、全 mode 分岐と `fail()` 分岐に到達すること
+    -   **実行行集合一致（`high-review-decision.sh`・`path-bash`）:** BASE と AFTER で `path-bash` が実行した `high-review-decision.sh` の行集合が一致すること
+    -   **ミューテーション検出:** AFTER に対して `-c i18n.logOutputEncoding=UTF-8` 削除、`widen` 分岐の変更、`fable` 分岐の削除のそれぞれを入れたとき、対応するテストが失敗すること
+    -   **オプトイン全件一致（AC-13 (3)）:** AFTER で `YT2COLUMN_TEST_BASH3_ALL=1` を付けて走らせた `bin-bash-3` の末端集合が、AFTER の `path-bash` の末端集合（`bin-bash-3` を `path-bash` に読み替えたもの）と一致すること
+    -   終わった後に、元のブランチに戻り作業ツリーがきれいであること
+-   **壊し方の確認:** 各判定が少なくとも 1 つの壊し方で失敗することを確かめる（ステップ 8-2）。
+-   **予定の実行:** PR-3 を作る前に `/runplan` が実行し、結果を本節に書く。記録の後にタスクのディレクトリの外のファイルかスクリプトが変わったときはやり直す（スクリプトが変わったときは壊し確認もやり直す）。
+-   **テスト:** コミットしない。
+-   **壊し方の記録:** 確かめたコミット: `a579553be4706d346d842d0cbc844d9ade597edb`（既定実行の `env -u "$optin_var"` 隔離と `PARTIAL`/`MISSING` 検索の `|| true` を足した後のスクリプトで、全判定の壊し確認をやり直した）。`CHECK_ONLY`・`CHECK_RR_RUN`・`CHECK_HRD_RUN` で狭め、作業ツリーの外に写したスクリプトに壊し方を入れて確かめた（狭めた実行は記録しない）。壊さない実行（環境変数 `YT2COLUMN_TEST_BASH3_ALL=1` 下での `optin-all` を含む）は `verify_bash_cut: PASS`（0）。
+    -   作業ツリー: 追跡されていないファイルを置いた → `verify_bash_cut: STOP: the work tree is not clean`（1）
+    -   `review-records.sh` 行集合（`path-bash`・`bin-bash-3`）: AFTER の行一覧から 1 行削った → `check rr-lines-path-bash: FAIL (line sets differ)`、`check rr-lines-bin-bash-3: FAIL (line sets differ)`（1）
+    -   全 mode 分岐と `fail()` 分岐: `TestReviewRecordsFableAlias` のみに狭めた → `check rr-modes-path-bash: FAIL (missing modes: coverage unreviewed cross-check, fail_branches_missing=1)`、`check rr-modes-bin-bash-3: FAIL (missing modes: coverage unreviewed cross-check, fail_branches_missing=1)`（1）
+    -   `high-review-decision.sh` 行集合: AFTER の行一覧から 1 行削った → `check hrd-lines: FAIL (line sets differ)`（1）
+    -   ミューテーション検出: `drop-log-encoding` のミューテーションをテストを落とさないコメント追記（`# noop`）に替えた（`cmp -s` は差分ありと判定し `go test` が rc=0 で通る） → `check mut-drop-log-encoding: FAIL (expected test failure (rc=0))`（終了コード 1）。また `drop-fable` の置換パターンを一致しない文字列に替えた → `check mut-drop-fable: FAIL (mutation did not change .claude/commands/_lib/review-records.sh)`（1）
+    -   オプトイン全件一致: C1 適用前の `BASE == AFTER`（既定と全件の末端数が同じ 4 件）で流した → `check optin-all: FAIL (default or opt-in leaf sets do not match expectations)`（1）。なお環境変数 `YT2COLUMN_TEST_BASH3_ALL=1` 下で狭めて流した健常実行は `default leaves: path-bash=2, bin-bash-3=1; opt-in leaves: path-bash=2, bin-bash-3=2` で `check optin-all: PASS`（0）
+    -   元のブランチへの復帰: ブランチへの切り替えを外した → `verify_bash_cut: STOP: not on the original branch`（1）。その後、手でブランチに戻した
+-   **実行の記録:** PR-3（2026-11-28、結果: 通った。スクリプトのコミット: `a579553be4706d346d842d0cbc844d9ade597edb`）。BASE: `0dcdfc0cbeefa68495349c12628a7c6a57232cf5`、AFTER: `abf0ebc69a3b3eb9715d041c0f87b2c1b9332bb1`。
+
+`````text
+BASE: 0dcdfc0cbeefa68495349c12628a7c6a57232cf5
+AFTER: abf0ebc69a3b3eb9715d041c0f87b2c1b9332bb1
+path-bash major: 5, /bin/bash major: 3
+== review-records.sh line coverage ==
+path-bash lines: BASE=341 AFTER=341
+check rr-lines-path-bash: PASS
+check rr-modes-path-bash: PASS
+bin-bash-3 lines: BASE=342 AFTER=342
+check rr-lines-bin-bash-3: PASS
+check rr-modes-bin-bash-3: PASS
+== high-review-decision.sh line coverage ==
+high-review-decision lines: BASE=184 AFTER=184
+check hrd-lines: PASS
+== mutations (AFTER) ==
+check mut-drop-log-encoding: PASS
+check mut-break-widen: PASS
+check mut-drop-fable: PASS
+== bash 3.2 opt-in all leaves (AFTER) ==
+default leaves: path-bash=227, bin-bash-3=51; opt-in leaves: path-bash=227, bin-bash-3=227
+check optin-all: PASS
+verify_bash_cut: PASS
+`````
 
 ## 8. 成功基準 (Success Criteria)
 
@@ -873,3 +1089,4 @@ coverage-compare: PASS
 - 2026-11-27 セッション中の再承認：`internal/mergepr` の目標を 80% 以下に改め、1.5 節に記録した（isseis、#1197）
 - 2026-11-27 セッション中の再承認：冗長テストの削減（フェーズ 8・PR-3）を計画に追加した（isseis、#1197）
 - 2026-11-27 セッション中の再承認：1.6 節に削減候補表を置き、C2 を縮小版にし、フェーズ 8 の検証（`coverage-compare`、`high-review-decision.sh` への適用、停止条件、AC-06・AC-09・AC-11）と、1.3 節・1.5 節・8 章・9 章の旧い記述を直した（isseis、#1197）
+- 2026-11-27 セッション中の再承認：ステップ 8-2 の bash 行カバレッジ方式を `set -T`＋`trap DEBUG` によるスクリプト全体の実行行集合一致＋全 mode 分岐到達とし、7.8 節に `_checks/verify_bash_cut.sh` の記録枠を置き、`_checks/compare.sh` に PR-3 用オプションを足す方針に改めた（isseis、#1202）

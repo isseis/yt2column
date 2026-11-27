@@ -45,7 +45,7 @@
 **実装の際に決めたこと（2026-11-27）**
 
 -   **目標の値と名前の比べ方:** 要件書の「実装の際に決めたこと（2026-11-27）」のとおり、`cmd/yt2column`・`internal/mergepr` とも目標は 80% 以下に改めた。2.1 の `cmd/yt2column` の見込み 0.65〜0.75 は、PR-1 の計測（0.777）で 0.03 ほど外れた。`internal/mergepr` は 3.7（`Setup` の `git fast-import` 化）を足した PR-2 単独で 0.737 だったが、PR-1 のぶれ（1.076）との積が 0.793 となったため 80% 以下に改めた。比較のスクリプトは、末端の名前の実行ごとに変わるコミットの短い ID を置き換えて名前の集まりを比べる（7.5）。ADR: なし（同上）。
--   **PR-3 での冗長テスト削減の設計方針:** PR-2 マージ後の PR-3 で、仮説として挙がった冗長ケース（Part 1: `review_records_test.go`・`high_review_decision_test.go`・`harness_mapping_cases_test.go` の C1〜C11、Part 2: `mergemain_test.go` の M1〜M13）をブランチのコードに照らして検証し、成り立つものだけを削減する。C1 は既定を構文網羅の 40 末端サブセットとし、オプトイン環境変数で全件実行を残す。C6 は削除し、6 件の git config シナリオと global の git config シナリオは維持し（C2 は Unreviewed・CrossCheck の重複だけを削る縮小版で、壊し確認が成り立つ場合に限る）、`mergemain_test.go` に main 側のみリネームする 1 ケースを追加する。検証の質は、Go 側は削除コミットごとの `make coverage-compare`＋壊し確認、bash 側は `_checks/` の一時スクリプトによる `(mode, line)` 行カバレッジ一致（`review-records.sh` と `high-review-decision.sh` の各コピー）＋ミューテーション検出で保証する。行カバレッジは git の設定シナリオを見分けられないので、設定シナリオは壊し確認で確かめる。ADR: なし（同上）。
+-   **PR-3 での冗長テスト削減の設計方針:** PR-2 マージ後の PR-3 で、仮説として挙がった冗長ケース（Part 1: `review_records_test.go`・`high_review_decision_test.go`・`harness_mapping_cases_test.go` の C1〜C11、Part 2: `mergemain_test.go` の M1〜M13）をブランチのコードに照らして検証し、成り立つものだけを削減する。C1 は既定を構文・行網羅の代表サブセットとし、オプトイン環境変数で全件実行を残す。C6 は削除し、6 件の git config シナリオと global の git config シナリオは維持し（C2 は Unreviewed・CrossCheck の重複だけを削る縮小版で、壊し確認が成り立つ場合に限る）、`mergemain_test.go` に main 側のみリネームする 1 ケースを追加する。検証の質は、Go 側は削除コミットごとの `make coverage-compare`＋壊し確認、bash 側は `_checks/verify_bash_cut.sh`（`set -T`＋`trap DEBUG` で `TMPDIR` 外のトレースファイルへ記録）による各 bash のスクリプト全体の実行行集合（`line`）一致＋全 mode 分岐到達（`review-records.sh` と `high-review-decision.sh` の各コピー）＋ミューテーション検出で保証する。PR-3 の AC-09・AC-11 検証は `_checks/compare.sh` に PR-3 用オプションを足して行う。行カバレッジは git の設定シナリオを見分けられないので、設定シナリオは壊し確認で確かめる。ADR: なし（同上）。
 
 ### 1.3. 用語
 
@@ -538,3 +538,4 @@ PR の分け方は実装計画で決める。`cmd/yt2column`（1〜5）と `inte
 - 2026-11-27 セッション中の再承認：`internal/mergepr` の目標を 80% 以下に改めた（isseis、#1197）
 - 2026-11-27 セッション中の再承認：PR-3（冗長テスト削減と行カバレッジ・ミューテーション検証）の設計方針を追加した（isseis、#1197）
 - 2026-11-27 セッション中の再承認：PR-3 の設計方針の C2 を、global の git config シナリオを残す縮小版にし、`high-review-decision.sh` にも行カバレッジの検証を適用すること、旧値 0.75 の注記を足した（isseis、#1197）
+- 2026-11-27 セッション中の再承認：PR-3 の bash 行カバレッジ方式を `set -T`＋`trap DEBUG` によるスクリプト全体の実行行集合一致＋全 mode 分岐到達とし、`_checks/compare.sh` に PR-3 用オプションを足す方針に改めた（isseis、#1202）
