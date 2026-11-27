@@ -1256,7 +1256,7 @@ for the agents that read it, and the Antigravity skill entries point here.
   `git push` may be executed without approval. Changing, disabling, or
   deleting the record ruleset that protects these tags also requires the
   user's explicit approval
-- Invoking `/mergemain` (whether typed by a human or sent by `chief`) approves, for that PR only, the network operations it runs through `mergepr`: `gh pr view`, `git fetch origin`, `git ls-remote` on the PR's head branch, and `git push` (non-force) to the PR's head branch. It approves no merge (`gh pr merge`), no PR review request, no write to a PR or review thread, no `numreserve` call, and no push to any branch other than the PR's head branch
+- Invoking `/mergemain` (whether typed by a human or sent by `chief`) approves, for that PR only, the network operations it runs through `mergepr`: `gh pr view`, `git fetch origin`, `git ls-remote` on the PR's head branch, and `git push` (non-force) to the PR's head branch, as well as `make ext-install` (including fetching dependencies from `registry.npmjs.org`) when the take-in requires extension checks. It approves no merge (`gh pr merge`), no PR review request, no write to a PR or review thread, no `numreserve` call, and no push to any branch other than the PR's head branch
 - Invoking `/chief` approves, for that session, the read-only network operations
   the `chief` tool runs while it shows the status, watches, makes a task's
   workspace, removes one, or sends a command the human chose: `git fetch origin

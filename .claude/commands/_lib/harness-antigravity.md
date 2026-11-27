@@ -48,7 +48,8 @@ Use `run_command`. Antigravity runs commands inside an OS sandbox by default
 2. **Minimal single-command elevation:** elevate with `BypassSandbox: true`
    only for command kinds that actually fail in the standard sandbox —
    specifically external git worktree `.git` access, network commands (`gh`,
-   `coderabbit review`, `numreserve`, `git fetch`, `git push`), `.git/objects`
+   `coderabbit review`, `numreserve`, `git fetch`, `git push`, and
+   `make ext-install` only when a command definition instructs it), `.git/objects`
    temporary writes such as `git show --remerge-diff`, or sandbox-blocked
    loopback sockets. Once a kind is confirmed blocked in the current session,
    subsequent single commands of that kind may set `BypassSandbox: true`
