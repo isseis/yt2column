@@ -215,6 +215,14 @@ func TestMergemainBeginPremisesAndNothingToTakeIn(t *testing.T) {
 		if status := k.Git("status", "--porcelain"); status != "" {
 			t.Fatalf("begin changed the work tree: %q", status)
 		}
+		wantGH := []string{"pr", "view", testTakeInPR, "--json", "state,baseRefName,headRefName,headRefOid,isCrossRepository"}
+		if len(k.GHCalls) != 1 || !slices.Equal(k.GHCalls[0], wantGH) {
+			t.Fatalf("gh calls = %q, want one %q", k.GHCalls, wantGH)
+		}
+		k.Git("config", "remote.origin.gh-resolved", "base")
+		if b2 := begin(t, k); b2 != b {
+			t.Fatalf("begin with gh-resolved=base = %+v, want %+v", b2, b)
+		}
 	})
 	for name, tc := range map[string]struct {
 		change func(t *testing.T, k *takeIn)
@@ -413,6 +421,12 @@ func TestMergemainConflictClassification(t *testing.T) {
 			main:   map[string]string{"a.md": strings.Replace(a, "a line 0", "main line", 1)},
 			want:   map[string]PathConflictClass{"c.md": PathConflictOutOfScope},
 		},
+		"markdown renamed on main and changed": {
+			base:   map[string]string{"a.md": a},
+			branch: map[string]string{"a.md": strings.Replace(a, "a line 0", "branch line", 1)},
+			main:   map[string]string{"a.md": deletedFile, "c.md": strings.Replace(a, "a line 0", "main line", 1)},
+			want:   map[string]PathConflictClass{"c.md": PathConflictOutOfScope},
+		},
 		"tool file renamed with only its declaration line in conflict": {
 			// Apart from the rename, this is a protocol-only conflict, so only
 			// the rename check can stop it.
@@ -487,6 +501,9 @@ func TestMergemainProtocolUpdateAndRuleFacts(t *testing.T) {
 		_, r, err := merge(t, k)
 		if err != nil {
 			t.Fatalf("MergemainMerge: %v", err)
+		}
+		if got := classes(r.Conflicts); !maps.Equal(got, map[string]PathConflictClass{takeInToolPath: PathConflictProtocolOnly}) {
+			t.Fatalf("conflicts = %v, want protocol-only on %s", got, takeInToolPath)
 		}
 		if !slices.Equal(r.Protocol, []ProtocolBump{{Tool: "tool", Value: 6}}) {
 			t.Fatalf("protocol = %+v, want tool 6", r.Protocol)
@@ -882,8 +899,12 @@ func TestMergemainPushRejectsNonHeadOrForce(t *testing.T) {
 		k, b := newPushFlowTakeIn(t)
 		head := k.Git("rev-parse", "HEAD")
 		rec := &recordingRunner{run: k.GitRunner()}
-		if _, err := k.ToolWith(rec).MergemainPush(t.Context(), mustPR(t), b.BaseHead, b.Main); err != nil {
+		r, err := k.ToolWith(rec).MergemainPush(t.Context(), mustPR(t), b.BaseHead, b.Main)
+		if err != nil {
 			t.Fatalf("MergemainPush: %v", err)
+		}
+		if r.NewHead != head || k.OriginGit("rev-parse", headsPrefix+takeInBranch) != head {
+			t.Fatalf("pushed %s, origin has %s, want %s", r.NewHead, k.OriginGit("rev-parse", headsPrefix+takeInBranch), head)
 		}
 		var pushes [][]string
 		for _, c := range rec.calls {
