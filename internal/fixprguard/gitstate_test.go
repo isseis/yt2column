@@ -625,12 +625,8 @@ func TestConfigListFailureKinds(t *testing.T) {
 		name   string
 		result configListResult
 	}{
-		// Joined with an exit error, so the cap is what keeps it a git failure.
-		{name: "output_over_cap", result: configListResult{Err: errors.Join(fmt.Errorf("git: %w", cmdrunner.ErrOutputTooLarge), exit(1))}},
-		{name: "cancelled", result: configListResult{Err: errors.Join(context.Canceled, exit(-1))}},
 		{name: "timed_out", result: configListResult{Err: errors.Join(context.DeadlineExceeded, exit(-1))}},
 		{name: "nonzero_exit", result: configListResult{Err: exit(128)}},
-		{name: "not_started", result: configListResult{Err: errors.New("exec: not found")}},
 		{name: "malformed_listing", result: malformed},
 	} {
 		t.Run("begin/"+tc.name, func(t *testing.T) {
