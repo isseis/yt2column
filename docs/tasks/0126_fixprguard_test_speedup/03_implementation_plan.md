@@ -228,7 +228,7 @@ PR-2 は製品を変えない。すべてのコミットがテストだけを変
 -   **作業:**
     -   [x] 2 つの `TestMain` を書く。`IsolateWorkingDir` を呼び、`Isolation` をパッケージの変数に書いてから `m.Run` を呼び、後の確かめをする。失敗したときは設計書 5 章のとおり 1 行の診断を出して終了コード `1` で終わる。`TestMain` がない状態で、`t.Chdir` を外したパッケージのテストを動かさない（漏れた操作がこのリポジトリに届くため）。
     -   [x] 2 つの `newTestRepo` から `t.Setenv`・`t.Chdir` を外し、準備の git に `fixprguardtest.Env(home, dir)` の環境を渡す。
-    -   [x] 製品の runner を作る補助（ステップ 1-5 の補助）が、`HOME` の引数を受け取り（1.3 節）、`Env` の環境と `Dir` を渡すようにする。`ConfigList` と `ignored_test.go:330` の runner も同じにする（設計書 3.3 節）。1.4 節の `os.Environ()` の箇所のうち、`docs_test.go` の `sh` の実行と直列に残すテストを除いて、すべてを `Env` に置き換える。
+    -   [x] 製品の runner を作る補助（ステップ 1-5 の補助）が、`HOME` の引数を受け取り（1.3 節）、`Env` の環境と `Dir` を渡すようにする。`ConfigList` と `ignored_test.go:330` の runner も同じにする（設計書 3.3 節）。1.4 節の `os.Environ()` の箇所のうち、直列に残すテストを除いて、すべてを `Env` に置き換える。`docs_test.go` の `sh` の実行も、実装の際に `Env`（`repo.Home` と `repo.Dir`）に置き換えた。`newTestRepo` が `HOME` と `PWD`（以前は `t.Setenv` と `t.Chdir` が設定していた）を設定しなくなったためで、期待値は変えていない（設計書 3.3 節）。
 -   **完了の条件:** `go vet -tags test ./internal/fixprguard/... ./cmd/fixprguard` が通る（テストはステップ 2-4 の後に通る）。
 
 #### ステップ 2-4: 作業ディレクトリに頼っていたテストを書き直す
@@ -256,7 +256,7 @@ PR-2 は製品を変えない。すべてのコミットがテストだけを変
 
 -   **作業:**
     -   [x] `make coverage-compare BASE=<マージベース>` を実行する（AC-14。PR-2 は製品を変えない）。記録はステップ 1-8 と同じである。
-    -   [x] `gotest.sh names <マージベース>` と `gotest.sh unchanged <マージベース>` を実行し、5.2 節の PR-2 の欄に記録する（AC-15、AC-09）。新しく現れた組には、ステップ 2-2 のテストがある。
+    -   [x] `gotest.sh names <マージベース>` と `gotest.sh unchanged <マージベース>` を実行し、5.2 節の PR-2 の欄に記録する（AC-15、AC-09）。`names` は 2 つのパッケージだけを比べるので、ステップ 2-2 のテスト（`fixprguardtest` のパッケージ自身のテスト）は新しい組に現れず、記録の `added` は 0 になる。
     -   [x] `testshape process-state` と `testshape env-source` を実行して、5.1 節の実行の記録に書く（AC-04、AC-05）。
     -   [x] 期待値を変えたテストと準備の変更を記録する（AC-16）。
 -   **完了の条件:** 上の結果が PR の説明と 5 章にある。
@@ -275,7 +275,7 @@ PR-2 は製品を変えない。すべてのコミットがテストだけを変
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
@@ -391,9 +391,9 @@ PR-3 は製品を変えない。
 | AC-02 | test | `_checks/gotest.sh` の `race` モード（5.1 節） | 3-2、3-5 |
 | AC-03 | test、manual | `testshape parallel` が、プログラムが持つ一覧（設計書 4 章の 6 項目）の外で `t.Parallel()` を呼ばないテストを報告しないこと。一覧と設計書 4 章が同じことは、PR-3 のレビューで読む | 3-1、3-5 |
 | AC-04 | test | `testshape process-state` 検査（5.1 節）。PR-2 と PR-3 で実行する | 2-6、3-5 |
-| AC-05 | test | `fixprguardtest` の `Env` のテスト（ステップ 2-2）。`testshape env-source` 検査（5.1 節）。同等性のテストの `home` の比較（ステップ 3-4） | 2-2、2-6、3-4、3-5 |
+| AC-05 | test | `internal/fixprguard/fixprguardtest/fixprguardtest_test.go::TestEnvReplacesInheritedValues`（ステップ 2-2。`GitEnv` が継承した `GIT_*` を除くことは、`internal/fixprguard/gitstate_test.go::TestGitEnvKeepsGitOnTheWorktree` が確かめる）。`testshape env-source` 検査（5.1 節）。同等性のテストの `home` の比較（ステップ 3-4） | 2-2、2-6、3-4、3-5 |
 | AC-06 | test | 作業ディレクトリが別のリポジトリのとき: `internal/fixprguard/worktree_flow_test.go::TestWorktreeIgnoresProcessDir`（PR-1）。作業ディレクトリに `.git` がないとき: PR-2 からの、`TestMain` の空のディレクトリの下での 2 つのパッケージのテスト全体（設計書 8.1 節）。PR-2 の `make test` で確かめる | 1-7、2-3、2-4 |
-| AC-07 | test、manual | `fixprguardtest` の `IsolateWorkingDir` と後の確かめのテスト（ステップ 2-2）。2 種類の漏れをわざと入れて失敗することの一度の確かめを、PR-2 の説明に記録する | 2-2、2-5 |
+| AC-07 | test、manual | `internal/fixprguard/fixprguardtest/fixprguardtest_test.go::TestIsolateWorkingDirRefusesRepository`・`::TestCheckEmpty`・`::TestIsolationChangesWorkingDirectory`（ステップ 2-2）。2 種類の漏れをわざと入れて失敗することの一度の確かめを、PR-2 の説明に記録する | 2-2、2-5 |
 | AC-08 | test、manual | `cmd/fixprguard/main_test.go::TestRunInProcessDir`、`::TestGhRunsWithoutGitVariables`、`::TestListRunnerRejectsStderr`。マージベースにあるテストの期待値の差分が空であることは、AC-16 と同じく PR のレビューで差分を読んで確かめる。要件の AC-16 がこの確かめ方を定めており、期待値の行だけを機械的に取り出す手段はない | 1-7、各 PR |
 | AC-09 | diff | `_checks/gotest.sh` の `unchanged` モード（5.1 節）。PR ごとに実行し、5.2 節に記録する | 1-8、2-6、3-5 |
 | AC-10 | static | `testshape fixture-git` 検査（5.1 節）が、前の `newTestRepo` と後の `newTestRepo` の git の起動の数を出す。前後の数を PR-3 の説明に書く。判定できないときは止めて人に尋ねる | 3-3、3-5 |
@@ -469,7 +469,7 @@ PR-3 は製品を変えない。
 -   **検査:**
     -   `parallel`: `internal/fixprguard` と `cmd/fixprguard` の `_test.go` のすべての `func TestXxx(t *testing.T)` と `t.Run` に渡す関数のうち、`t.Parallel()` を呼ばないものを、プログラムが持つ一覧（設計書 4 章）と比べる。一覧の外のものがあるとき、一覧のテストが見つからないとき、`t.Run` に関数のリテラルでない値が渡されて判定できないときは、失敗する。
     -   `process-state`: 2 つのパッケージの `_test.go`・`test_helpers*.go` と `internal/fixprguard/fixprguardtest` の Go のファイルで、`t.Chdir`・`t.Setenv`・`os.Chdir`・`os.Setenv`・`os.Unsetenv` の呼び出しが、一覧のテストとその補助（プログラムが名前で持つ）の中と `IsolateWorkingDir` の中にだけあることを確かめる。
-    -   `env-source`: 同じファイルで、`os.Environ()` の呼び出しが、`fixprguardtest.Env` の中、一覧のテストとその補助の中、`cmd/fixprguard/docs_test.go` の `sh` の実行の中にだけあることを確かめる。
+    -   `env-source`: 同じファイルで、`os.Environ()` の呼び出しが、`fixprguardtest.Env` の中、一覧のテストとその補助の中、`cmd/fixprguard/docs_test.go` の `sh` の実行の中にだけあることを確かめる（PR-2 で `sh` の実行も `Env` に置き換えたので、後の許可は使われない）。
     -   `fixture-git <before>`: `<before>` の木の 2 つの `newTestRepo` と、今の木の `build` が起動する git の引数の並びを比べ、同じであることを確かめる。また、前の `newTestRepo` と後の `newTestRepo` が起動する git の数を出す。分岐やループのある本体、読めない呼び出しに当たったときは、判定せずに失敗する。
     -   それぞれの検査は、少なくとも 1 つの破壊で失敗することを確かめる。
 -   **実行の予定:**
@@ -482,7 +482,7 @@ PR-3 は製品を変えない。
     -   `process-state`: `internal/fixprguard/changes_test.go` の `TestParseJudgedSetID` に `t.Setenv` を一時的に入れて実行し、終了コード 1（`disallowed t.Setenv in internal/fixprguard.TestParseJudgedSetID`）で失敗することを確認した。戻して健全な木で `PASS` に戻ることを確認した。
     -   `env-source`: 同じ場所に `os.Environ()` を一時的に入れて実行し、終了コード 1（`disallowed os.Environ in internal/fixprguard.TestParseJudgedSetID`）で失敗することを確認した。戻して `PASS` に戻ることを確認した。
 -   **実行の記録:**
-    -   `process-state`・`env-source`（PR-2。対象コミットは PR を作る直前の `HEAD` で、5.2 節の PR-2 の欄が書く）:
+    -   `process-state`・`env-source`（PR-2。対象コミット `859f9fa84c8b07a1e4f52b5567ff68f517ddb076`）:
 
         ```text
         testshape process-state: PASS
@@ -557,12 +557,12 @@ PR-3 は製品を変えない。
         status=PASS
         ```
 -   **PR-2:**
-    -   AC-09（比較: `652e8994c78ba8fde011752e11af032b86bc6124` → `9502c4943d304b1f4dc56f6935e954c87b39d757`）:
+    -   AC-09（比較: `652e8994c78ba8fde011752e11af032b86bc6124` → `859f9fa84c8b07a1e4f52b5567ff68f517ddb076`）:
 
         ```text
         mode=unchanged
         base=652e8994c78ba8fde011752e11af032b86bc6124
-        head=9502c4943d304b1f4dc56f6935e954c87b39d757
+        head=859f9fa84c8b07a1e4f52b5567ff68f517ddb076
         guide=PASS (docs/dev/guides/fixprguard_guide.md)
         protocol=PASS (base: const Protocol = 9 | head: const Protocol = 9 | worktree: const Protocol = 9)
         status=PASS
@@ -573,7 +573,7 @@ PR-3 は製品を変えない。
         ```text
         mode=names
         base=652e8994c78ba8fde011752e11af032b86bc6124
-        head=9502c4943d304b1f4dc56f6935e954c87b39d757
+        head=859f9fa84c8b07a1e4f52b5567ff68f517ddb076
         base_pass=1844
         head_pass=1844
         missing=0
