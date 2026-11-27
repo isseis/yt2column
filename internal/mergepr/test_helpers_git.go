@@ -15,7 +15,12 @@ import (
 	"testing"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
+	"github.com/isseis/yt2column/internal/snapshottest"
 )
+
+// snapshotStore holds the shared takeIn states built once per test process by
+// TestMain.
+var snapshotStore *snapshottest.Store
 
 // testMainRef is origin/main's remote-tracking ref, spelled out here rather
 // than taken from the production constant, so a change to how the check names
