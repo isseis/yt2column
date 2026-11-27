@@ -343,7 +343,7 @@ ADR: なし（このタスクの目標と手順である）。
 - [ ] **ステップ 8-1**: 削減候補（1.6 節の C1〜C11・M1〜M13）の仮説検証と bash 3 サブセットの再導出
     - 現在のブランチ上の `review-records.sh`・`high-review-decision.sh`・`internal/mergepr` とテストコードに照らし、各候補が成り立つかを検証して成り立たない候補を除外する（C3 は `unreviewed()` 自身の引数検証 3 件を残して 53 件削減、C6 は現行 5 件、M13 は `TestMergemainBeginPremisesAndNothingToTakeIn/ok` への統合で成立）
     - `review-records.sh` の現在のコードから、bash 3.2 依存構文と実行可能 bash 行をすべて踏む代表サブセットを再導出する
-- [ ] **ステップ 8-2**: bash テスト削減の検証用一時スクリプトを作成し壊し確認する
+- [x] **ステップ 8-2**: bash テスト削減の検証用一時スクリプトを作成し壊し確認する
     - 追加・変更するファイル: `docs/tasks/0127_git_fixture_test_speedup/_checks/verify_bash_cut.sh`（新規）、`docs/tasks/0127_git_fixture_test_speedup/_checks/compare.sh`（PR-3 用オプション `CHECK_SKIP_AC04=1` 追加）
     - `verify_bash_cut.sh` の機能: (1) 一時コピーした `review-records.sh` と `high-review-decision.sh`（`env -i` 後の `unset *_CLEAN_ENV` 行に `set -T`＋`trap DEBUG` を 1 行で追記し、`TMPDIR` 外のトレースファイルへ記録して行番号と `stderr` を変えない）で、各 bash（`high-review-decision.sh` は bash 4 以上だけ）における削減前後のスクリプト全体の実行行集合（`line`）が一致し、`review-records.sh` の全 mode 分岐と `fail()` 分岐に到達することを確認、(2) 残す代表ケースに対するミューテーション（`-c i18n.logOutputEncoding` 削除、`widen` 変更、`fable` 削除）が失敗することを確認、(3) `YT2COLUMN_TEST_BASH3_ALL=1` で `bin-bash-3` の末端集合が `path-bash` と一致すること（AC-13 (3)）を確認する。`GIT_CONFIG_GLOBAL` の削除は、`-c i18n.logOutputEncoding=UTF-8` が global より優先して出力が変わらず検出できないので、ミューテーションに含めない。行カバレッジは設定シナリオを見分けられないので、設定シナリオの削除は (2) の壊し確認でだけ確かめる
     - 7.8 節にこの一時スクリプトの記録を置き、壊し確認を行って記録する。`compare.sh` の変更後、7.4 節の壊し確認もやり直す
@@ -786,18 +786,18 @@ compare: PASS
 -   **壊し方の確認:** 各判定が少なくとも 1 つの壊し方で失敗することを確かめる（ステップ 6-3）。
 -   **予定の実行:** 7.3 節と同じ時点と人で実行する。
 -   **テスト:** コミットしない。
--   **壊し方の記録:** 確かめたコミット: `db4e85006b1bddcedeace681aa651faf1b419976`（1.5 節の名前の比べ方を足し、中間の名前の判定を「パッケージの全部の末端のうち、最初でも最後でもない」に直した後のスクリプトで、壊し方の確認を全部やり直した。結果は前回と同じで、壊さない実行は `compare: PASS`）。作業ツリーの外に写したスクリプトに壊し方を入れるか、引数・環境変数で入力を替えて流した（`CHECK_PKGS=./cmd/yt2column`、`CHECK_RUN` と `CHECK_TOPS` で `TestReviewRecordsFableAlias` と `TestHighReviewDecisionCallSite` に狭めた。狭めた実行は記録しない）。どの壊し方も、作業ツリーに残していない。
-    -   名前の集まり: AFTER の末端の名前を 1 行消した → `check names: FAIL`（終了コード 1）
-    -   `fail`: AFTER の `fail` の事象を 1 件足した → `check fail: FAIL`（1）
-    -   `skip`: AFTER の `skip` の集まりに 1 件足した → `check skip: FAIL`（1）
-    -   bash 3 の末端: 狭めた実行では、4 つの関数のうち 1 つにしか末端がないので、そのままでは判定が失敗する。そこで、写したスクリプトの対象の関数の並びを `TestReviewRecordsFableAlias` 1 つに替えて、壊さない実行は `check bin-bash-3: PASS`。名前の `bin-bash-3` を `bin-bash-9` に替えた → `check bin-bash-3: FAIL`（1）
-    -   単独の選択: `-run` の式を 1 要素ごとに壊した → `select FAILED` が 3 件、`check single-first-last: FAIL`（1）。BASE にない最上位の名前を渡した → `TestNoSuchTop has no leaf in BASE`、`check single-first-last: FAIL`（1）
-    -   中間の名前: パッケージの最初の末端（`TestHighReviewDecisionCallSite`）を渡した → `is the first or the last leaf of`、BASE にない名前を渡した → `is not in BASE`、名前を渡さない → `no middle name given`、いずれも `check single-middle: FAIL`（1）。壊さない実行（中間の名前 1 つ）は `compare: PASS`（0）
-    -   shuffle: `-shuffle=on` を外した → シードの行がなく `check shuffle: FAIL`（1）
+-   **壊し方の記録:** 確かめたコミット: `6649ffc4649bb94a689ed3ad30daea7db57bbc62`（PR-3 用オプション `CHECK_SKIP_AC04=1` を足した後のスクリプトで、全判定の壊し確認をやり直した。壊さない実行は通常モード・`CHECK_SKIP_AC04=1` モードとも `compare: PASS`）。作業ツリーの外に写したスクリプトに壊し方を入れるか、引数・環境変数で入力を替えて流した（`CHECK_PKGS=./cmd/yt2column`、`CHECK_RUN` と `CHECK_TOPS` で `TestReviewRecordsFableAlias` と `TestHighReviewDecisionCallSite` に狭めた。狭めた実行は記録しない）。どの壊し方も作業ツリーに残していない。
+    -   名前の集まり: AFTER の末端の名前を 1 行消した → `check names: FAIL (1 differing names)`（終了コード 1）
+    -   `fail`: `CHECK_SKIP_AC04=1` で AFTER の `fail` の事象を 1 件足した → `check fail: FAIL (fail events present)`（1）
+    -   `skip`: AFTER の `skip` の集まりに 1 件足した → `check skip: FAIL (skip sets differ)`（1）
+    -   bash 3 の末端: 写したスクリプトの対象の関数の並びを `TestReviewRecordsFableAlias` 1 つに替えて、壊さない実行は `check bin-bash-3: PASS`。名前の `bin-bash-3` を `bin-bash-9` に替えた → `check bin-bash-9: FAIL`（1）
+    -   単独の選択: `CHECK_SKIP_AC04=1` で AFTER にない最上位の名前 `TestNoSuchTop` を渡した → `select FAILED: TestNoSuchTop has no leaf in AFTER`、`check single-first-last: FAIL`（1）
+    -   中間の名前: `CHECK_SKIP_AC04=1` でパッケージの最初の末端（`TestHighReviewDecisionCallSite`）を渡した → `middle FAILED: TestHighReviewDecisionCallSite is the first or the last leaf of github.com/isseis/yt2column/cmd/yt2column`、`check single-middle: FAIL`（1）。名前を渡さない → `middle FAILED: no middle name given`、`check single-middle: FAIL`（1）
+    -   shuffle: `-shuffle=on` を `-count=1` に替えた → `shuffle run 1: expected 1 seed lines, read 0`、`check shuffle: FAIL`（1）
     -   差分の範囲: 一覧に `README.md` を足した → `range FAILED: README.md`、`check range: FAIL`（1）
-    -   `go test` の失敗: `CHECK_PKGS=./nonexistent` → `STOP: go test failed at BASE`（1）
-    -   作業ツリー: 追跡されていないファイルを置いた → `STOP: the work tree is not clean`（1）
-    -   元のブランチへの復帰: ブランチへの切り替えを外した → `STOP: not on the original branch`（1）。その後、手でブランチに戻した
+    -   `go test` の失敗: `CHECK_PKGS=./nonexistent` → `compare: STOP: go test failed at AFTER`（1）
+    -   作業ツリー: 追跡されていないファイルを置いた → `compare: STOP: the work tree is not clean`（1）
+    -   元のブランチへの復帰: ブランチへの切り替えを外した → `compare: STOP: not on the original branch`（1）。その後、手でブランチに戻した
 -   **実行の記録:** PR-1 と PR-2 の実行は 7.2 節に置いた（出力の全体と 2 つのコミットの ID）。PR-1 の中間の名前は 1.3 節の表の `cmd/yt2column` の 5 つ、PR-2 の中間の名前は `internal/mergepr` の 3 つ（`TestMergemainProtocolUpdateAndRuleFacts/protocol_line_conflict_resolved_to_main_plus_one`、`TestMergemainRestoreSafeAndRefusesOtherChanges/other_branch`、`TestMergemainPushChecksParentsAndMain/merge_in_progress`）である。
 
 ### 7.5. 前提の検査の確かめ（AC-07）
@@ -869,7 +869,14 @@ coverage-compare: PASS
 -   **壊し方の確認:** 各判定が少なくとも 1 つの壊し方で失敗することを確かめる（ステップ 8-2）。
 -   **予定の実行:** PR-3 を作る前に `/runplan` が実行し、結果を本節に書く。記録の後にタスクのディレクトリの外のファイルかスクリプトが変わったときはやり直す（スクリプトが変わったときは壊し確認もやり直す）。
 -   **テスト:** コミットしない。
--   **壊し方の記録:** （ステップ 8-2 で記入）
+-   **壊し方の記録:** 確かめたコミット: `6649ffc4649bb94a689ed3ad30daea7db57bbc62`。`CHECK_ONLY`・`CHECK_RR_RUN`・`CHECK_HRD_RUN` で狭め、作業ツリーの外に写したスクリプトに壊し方を入れて確かめた（狭めた実行は記録しない）。壊さない実行（`mutations` のみ・`hrd-lines` のみ）は `verify_bash_cut: PASS`（0）。
+    -   作業ツリー: 追跡されていないファイルを置いた → `verify_bash_cut: STOP: the work tree is not clean`（1）
+    -   `review-records.sh` 行集合（`path-bash`・`bin-bash-3`）: AFTER の行一覧から 1 行削った → `check rr-lines-path-bash: FAIL (line sets differ)`、`check rr-lines-bin-bash-3: FAIL (no lines recorded)`（1）
+    -   全 mode 分岐と `fail()` 分岐: `TestReviewRecordsFableAlias` のみに狭めた → `check rr-modes-path-bash: FAIL (missing modes: coverage unreviewed cross-check, fail_branches_missing=1)`、`check rr-modes-bin-bash-3: FAIL`（1）
+    -   `high-review-decision.sh` 行集合: AFTER の行一覧から 1 行削った → `check hrd-lines: FAIL (line sets differ)`（1）
+    -   ミューテーション検出: `drop-fable` の置換パターンを一致しない文字列に替えた → `check mut-drop-fable: FAIL (mutation did not change .claude/commands/_lib/review-records.sh)`（1）
+    -   オプトイン全件一致: C1 適用前の `BASE == AFTER`（既定と全件の末端数が同じ 4 件）で流した → `check optin-all: FAIL (default or opt-in leaf sets do not match expectations)`（1）
+    -   元のブランチへの復帰: ブランチへの切り替えを外した → `verify_bash_cut: STOP: not on the original branch`（1）。その後、手でブランチに戻した
 -   **実行の記録:** （ステップ 8-3・8-5 で記入）
 
 ## 8. 成功基準 (Success Criteria)
