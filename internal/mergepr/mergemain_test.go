@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
+	"github.com/isseis/yt2column/internal/snapshottest"
 )
 
 // The Go sources of the take-in tests live here, not in a helper: the
@@ -614,6 +615,74 @@ func conflictSetup(k *takeIn) (baseHead, mainOID string) {
 	return k.Setup(baseFiles(), map[string]string{"doc.md": "one\nbranch\nthree\n"}, map[string]string{"doc.md": "one\nmain\nthree\n"})
 }
 
+// takeInConflictState holds the Go values produced when building the shared
+// conflict-merge-in-progress state.
+type takeInConflictState struct {
+	baseHead string
+	mainOID  string
+	begin    MergemainBeginResult
+	merge    MergemainMergeResult
+}
+
+func cloneTakeInConflictState(s takeInConflictState) takeInConflictState {
+	s.merge.Conflicts = slices.Clone(s.merge.Conflicts)
+	s.merge.Protocol = slices.Clone(s.merge.Protocol)
+	s.merge.ADRConflictNumbers = slices.Clone(s.merge.ADRConflictNumbers)
+	return s
+}
+
+var (
+	takeInConflictKind = snapshottest.NewKind("conflict merge in progress", cloneTakeInConflictState)
+	takeInPushFlowKind = snapshottest.NewKind[MergemainBeginResult]("after merge commit", nil)
+)
+
+// buildConflictInProgressState runs conflictSetup, begin, and merge on k and
+// fails t if the merge returns an error.
+func buildConflictInProgressState(t *testing.T, k *takeIn) takeInConflictState {
+	t.Helper()
+	baseHead, mainOID := conflictSetup(k)
+	b, r, err := merge(t, k)
+	if err != nil {
+		t.Fatalf("MergemainMerge: %v", err)
+	}
+	return takeInConflictState{baseHead: baseHead, mainOID: mainOID, begin: b, merge: r}
+}
+
+// newConflictInProgressTakeIn returns a copy of the shared takeIn left in the
+// middle of the doc.md Markdown conflict merge, along with its cloned state.
+func newConflictInProgressTakeIn(t *testing.T) (*takeIn, takeInConflictState) {
+	t.Helper()
+	sn := snapshottest.Load(t, snapshotStore, takeInConflictKind, nil, func(bt *testing.T, dir string) takeInConflictState {
+		k := initTakeInDir(bt, dir)
+		return buildConflictInProgressState(bt, k)
+	})
+	return copyTakeIn(t, sn), sn.Value()
+}
+
+// buildPushFlowState runs conflictSetup, begin, merge, and the commit of the
+// resolved doc.md conflict on k.
+func buildPushFlowState(t *testing.T, k *takeIn) MergemainBeginResult {
+	t.Helper()
+	conflictSetup(k)
+	b, _, err := merge(t, k)
+	if err != nil {
+		t.Fatalf("MergemainMerge: %v", err)
+	}
+	commitMerge(t, k, map[string]string{"doc.md": "one\nbranch\nmain\nthree\n"})
+	return b
+}
+
+// newPushFlowTakeIn returns a copy of the shared takeIn after committing the
+// resolved doc.md merge commit, along with its begin result.
+func newPushFlowTakeIn(t *testing.T) (*takeIn, MergemainBeginResult) {
+	t.Helper()
+	sn := snapshottest.Load(t, snapshotStore, takeInPushFlowKind, nil, func(bt *testing.T, dir string) MergemainBeginResult {
+		k := initTakeInDir(bt, dir)
+		return buildPushFlowState(bt, k)
+	})
+	return copyTakeIn(t, sn), sn.Value()
+}
+
 // assertRestored checks the state a restore must leave: HEAD at the base
 // head, no tracked change, and no merge in progress.
 func assertRestored(t *testing.T, k *takeIn, baseHead string) {
@@ -638,12 +707,8 @@ func TestMergemainRestoreSafeAndRefusesOtherChanges(t *testing.T) {
 	}
 	t.Run("merge in progress with Markdown edits", func(t *testing.T) {
 		t.Parallel()
-		k := newTakeIn(t)
-		baseHead, _ := conflictSetup(k)
-		b, _, err := merge(t, k)
-		if err != nil {
-			t.Fatalf("MergemainMerge: %v", err)
-		}
+		k, st := newConflictInProgressTakeIn(t)
+		baseHead, b := st.baseHead, st.begin
 		writeWork(t, k, "doc.md", "one\nresolved\nthree\n")
 		k.Git("add", "doc.md")
 		writeWork(t, k, "README.md", "edited, untouched by the merge\n")
@@ -682,12 +747,8 @@ func TestMergemainRestoreSafeAndRefusesOtherChanges(t *testing.T) {
 	})
 	t.Run("merge commit not pushed", func(t *testing.T) {
 		t.Parallel()
-		k := newTakeIn(t)
-		baseHead, _ := conflictSetup(k)
-		b, _, err := merge(t, k)
-		if err != nil {
-			t.Fatalf("MergemainMerge: %v", err)
-		}
+		k, st := newConflictInProgressTakeIn(t)
+		baseHead, b := st.baseHead, st.begin
 		commitMerge(t, k, map[string]string{"doc.md": "one\nresolved\nthree\n"})
 		if err := restore(t, k, b); err != nil {
 			t.Fatalf("MergemainRestore: %v", err)
@@ -743,12 +804,8 @@ func TestMergemainRestoreSafeAndRefusesOtherChanges(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			k := newTakeIn(t)
-			conflictSetup(k)
-			b, _, err := merge(t, k)
-			if err != nil {
-				t.Fatalf("MergemainMerge: %v", err)
-			}
+			k, st := newConflictInProgressTakeIn(t)
+			b := st.begin
 			change(t, k, b)
 			before := k.Git("rev-parse", "HEAD")
 			status := k.Git("status", "--porcelain=v1", "--untracked-files=all", "--ignored")
@@ -761,18 +818,6 @@ func TestMergemainRestoreSafeAndRefusesOtherChanges(t *testing.T) {
 			}
 		})
 	}
-}
-
-// pushFlow runs begin, merge, and the commit of a Markdown conflict.
-func pushFlow(t *testing.T, k *takeIn) MergemainBeginResult {
-	t.Helper()
-	conflictSetup(k)
-	b, _, err := merge(t, k)
-	if err != nil {
-		t.Fatalf("MergemainMerge: %v", err)
-	}
-	commitMerge(t, k, map[string]string{"doc.md": "one\nbranch\nmain\nthree\n"})
-	return b
 }
 
 func push(t *testing.T, k *takeIn, b MergemainBeginResult) (MergemainPushResult, error) {
@@ -796,8 +841,7 @@ func TestMergemainPushSuccessRejectedAndUnknown(t *testing.T) {
 	t.Parallel()
 	t.Run("pushed", func(t *testing.T) {
 		t.Parallel()
-		k := newTakeIn(t)
-		b := pushFlow(t, k)
+		k, b := newPushFlowTakeIn(t)
 		head := k.Git("rev-parse", "HEAD")
 		r, err := push(t, k, b)
 		if err != nil {
@@ -809,8 +853,7 @@ func TestMergemainPushSuccessRejectedAndUnknown(t *testing.T) {
 	})
 	t.Run("rejected", func(t *testing.T) {
 		t.Parallel()
-		k := newTakeIn(t)
-		b := pushFlow(t, k)
+		k, b := newPushFlowTakeIn(t)
 		preReceive(t, k, "exit 1")
 		_, err := push(t, k, b)
 		wantStop(t, err, MergemainStopPushRejected, RestoreNeeded)
@@ -820,8 +863,7 @@ func TestMergemainPushSuccessRejectedAndUnknown(t *testing.T) {
 	})
 	t.Run("unknown", func(t *testing.T) {
 		t.Parallel()
-		k := newTakeIn(t)
-		b := pushFlow(t, k)
+		k, b := newPushFlowTakeIn(t)
 		// The hook moves the branch elsewhere and fails, so origin is
 		// neither the base head nor the pushed commit afterwards.
 		preReceive(t, k, "printf '%s\\n' "+b.Main+" > refs/heads/"+takeInBranch+"\nexit 1")
@@ -837,8 +879,7 @@ func TestMergemainPushRejectsNonHeadOrForce(t *testing.T) {
 	// differently, so only the command shows that none is used.
 	t.Run("push command", func(t *testing.T) {
 		t.Parallel()
-		k := newTakeIn(t)
-		b := pushFlow(t, k)
+		k, b := newPushFlowTakeIn(t)
 		head := k.Git("rev-parse", "HEAD")
 		rec := &recordingRunner{run: k.GitRunner()}
 		if _, err := k.ToolWith(rec).MergemainPush(t.Context(), mustPR(t), b.BaseHead, b.Main); err != nil {
@@ -870,8 +911,7 @@ func TestMergemainPushRejectsNonHeadOrForce(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			k := newTakeIn(t)
-			b := pushFlow(t, k)
+			k, b := newPushFlowTakeIn(t)
 			change(k)
 			before := k.OriginGit("rev-parse", headsPrefix+takeInBranch)
 			_, err := push(t, k, b)
@@ -920,8 +960,7 @@ func TestMergemainPushChecksParentsAndMain(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			k := newTakeIn(t)
-			b := pushFlow(t, k)
+			k, b := newPushFlowTakeIn(t)
 			tc.change(t, k, &b)
 			restore := RestoreNeeded
 			if tc.stop == MergemainStopOtherChanges {
@@ -963,8 +1002,7 @@ func TestMergemainPushRejectsOutOfScope(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			k := newTakeIn(t)
-			b := pushFlow(t, k)
+			k, b := newPushFlowTakeIn(t)
 			change(t, k)
 			_, err := push(t, k, b)
 			wantStop(t, err, MergemainStopOutOfScope, RestoreNeeded)
@@ -1250,8 +1288,7 @@ func TestMergemainMergeIgnoresConfiguredMergeOptions(t *testing.T) {
 
 func TestMergemainPushAfterOriginHasItAsksNoRestore(t *testing.T) {
 	t.Parallel()
-	k := newTakeIn(t)
-	b := pushFlow(t, k)
+	k, b := newPushFlowTakeIn(t)
 	// origin has the merge commit, but GitHub still names the base head as
 	// the PR head.
 	k.PR.HeadOID = b.BaseHead
@@ -1263,8 +1300,7 @@ func TestMergemainPushAfterOriginHasItAsksNoRestore(t *testing.T) {
 
 func TestMergemainPushAfterItLandedAsksNoRestore(t *testing.T) {
 	t.Parallel()
-	k := newTakeIn(t)
-	b := pushFlow(t, k)
+	k, b := newPushFlowTakeIn(t)
 	// An earlier push landed but its result was not read: origin and the
 	// PR head are the merge commit, and the remote-tracking ref is not.
 	k.Git("push", "-q", "origin", "HEAD:refs/heads/landed")
