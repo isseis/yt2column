@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-27 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-27 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルについての記述は、コミット `e7150e43` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。要件の起草で設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-03）への対応は、付録 A にまとめる。
@@ -488,3 +488,7 @@ flowchart TD
 | H-01 | `.claude/settings.json` に規則を足さず、chief が送る pane の auto mode の判定に任せる。判定が許すことは、実装の PR のマージの前に、人が打つ `/mergemain` で実地に確かめる（1.2・3.3・7.3）。chief が送る pane の許可のモードは、確かめずに前提とする（3.3）。ADR-0046 を更新する（3.4） |
 | H-02 | 手順 7 から `make ext-preflight` を外し、`make ext-install` → `make ext-check` とする。`make ext-install` が通らなかったときを「検査の準備がない」に写す。`make ext-install` は本文に書き、`mergemainLinePrefixes` は変えない（1.2・3.1・3.5） |
 | H-03 | `make ext-install` を前景で、上限を 10 分にして走らせ、打ち切られたら失敗として戻して止まる。打ち切りの後に残りうるプロセスは報告で人に示す（1.2・3.1・4.2） |
+
+## 変更履歴
+
+- 2026-11-27 承認（isseis、#1198）
