@@ -29,6 +29,7 @@ import (
 // ignored.go, so removing an item from the data fails its row. Every item of
 // the table has a row.
 func TestIsWatched(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		path string
@@ -115,6 +116,7 @@ func TestIsWatched(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			if got := isWatched(tt.path); got != tt.want {
 				t.Errorf("isWatched(%q) = %v, want %v", tt.path, got, tt.want)
 			}
@@ -128,6 +130,7 @@ func TestIsWatched(t *testing.T) {
 // later would rely on. Reading every invalid byte as U+FFFD, as
 // strings.EqualFold does, would equate the first pair and the last.
 func TestFoldEqual(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		a, b string
@@ -139,6 +142,7 @@ func TestFoldEqual(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			if got := foldEqual(tt.a, tt.b); got != tt.want {
 				t.Errorf("foldEqual(%q, %q) = %v, want %v", tt.a, tt.b, got, tt.want)
 			}
@@ -150,6 +154,7 @@ func TestFoldEqual(t *testing.T) {
 // isWatched matches, and the list has the 33 items of the requirements table
 // (2 directories, 3 top-level files, 9 names, 2 suffixes, 17 Go build inputs).
 func TestWatchListPatternsMatch(t *testing.T) {
+	t.Parallel()
 	patterns := WatchListPatterns()
 	if len(patterns) != 33 {
 		t.Errorf("WatchListPatterns() has %d items, want 33: %q", len(patterns), patterns)
@@ -256,6 +261,7 @@ func mkdir(t *testing.T, name string) {
 // TestParseIgnoredListing: only the listing shape is accepted; every other
 // shape fails the whole listing, with nothing repaired or skipped.
 func TestParseIgnoredListing(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		out       string
@@ -281,6 +287,7 @@ func TestParseIgnoredListing(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			files, dirs, err := parseIgnoredListing([]byte(tt.out))
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("error = %v, want %v", err, tt.wantErr)
@@ -295,11 +302,14 @@ func TestParseIgnoredListing(t *testing.T) {
 // TestCollectTargetsGitFailures: a listing git fails, warns about, or
 // overflows stops the pass, each with its own rule.
 func TestCollectTargetsGitFailures(t *testing.T) {
+	t.Parallel()
 	listCall := cmdrunnertestutil.Step{Name: gitCommand, Args: slices.Concat(cmdrunner.GitHardening(), listIgnoredArgs)}
 	t.Run("unreadable_directory_warning", func(t *testing.T) {
+		t.Parallel()
 		requireNonRoot(t)
 		for _, dir := range []string{"build/locked", ".claude/locked"} {
 			t.Run(strings.Split(dir, "/")[0], func(t *testing.T) {
+				t.Parallel()
 				r := newTestRepo(t)
 				r.ignore("build/", ".claude/")
 				r.Write(dir+"/x.go", "package x\n")
@@ -315,6 +325,7 @@ func TestCollectTargetsGitFailures(t *testing.T) {
 	startStep.Err = exec.ErrNotFound
 	for name, step := range map[string]cmdrunnertestutil.Step{"nonzero_exit": exitStep, "not_started": startStep} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			r := newTestRepo(t)
 			w, router := newTestWorktree(t, r.Dir, r.Home)
 			router.List = cmdrunnertestutil.New(t, step)
@@ -324,6 +335,7 @@ func TestCollectTargetsGitFailures(t *testing.T) {
 		})
 	}
 	t.Run("output_over_the_cap", func(t *testing.T) {
+		t.Parallel()
 		r := newTestRepo(t)
 		r.ignore("build/")
 		r.Write("build/0123456789.txt", "x")
@@ -338,6 +350,7 @@ func TestCollectTargetsGitFailures(t *testing.T) {
 // TestCollectTargetsWalk: a nested repository in an ignored directory is
 // one listed item, and the files below it are found by walking it.
 func TestCollectTargetsWalk(t *testing.T) {
+	t.Parallel()
 	setup := func(t *testing.T) *testRepo {
 		t.Helper()
 		r := newTestRepo(t)
@@ -351,6 +364,7 @@ func TestCollectTargetsWalk(t *testing.T) {
 		return r
 	}
 	t.Run("nested_repository", func(t *testing.T) {
+		t.Parallel()
 		r := setup(t)
 		state, err := collect(t, r.Dir, r.Home, wideLimits())
 		if err != nil {
@@ -365,6 +379,7 @@ func TestCollectTargetsWalk(t *testing.T) {
 	})
 	// A guard against building the targets as a list that keeps duplicates.
 	t.Run("settings_listed_once", func(t *testing.T) {
+		t.Parallel()
 		r := newTestRepo(t)
 		r.ignore(".claude/")
 		r.Write(settingsLocalPath, "{}\n")
@@ -377,6 +392,7 @@ func TestCollectTargetsWalk(t *testing.T) {
 		}
 	})
 	t.Run("directory_item_replaced", func(t *testing.T) {
+		t.Parallel()
 		dir := t.TempDir()
 		writeFile(t, filepath.Join(dir, "file"), "x")
 		mkdir(t, filepath.Join(dir, "dir"))
@@ -390,6 +406,7 @@ func TestCollectTargetsWalk(t *testing.T) {
 		}
 	})
 	t.Run("unreadable_directory_in_nested_repository", func(t *testing.T) {
+		t.Parallel()
 		requireNonRoot(t)
 		r := setup(t)
 		mkdir(t, filepath.Join(r.Dir, "build/nested/locked"))
@@ -406,6 +423,7 @@ func TestCollectTargetsWalk(t *testing.T) {
 // does not branch on the directory, so .agents runs only the rows that pin
 // its own error.
 func TestCollectTargetsWatchedDirGitNames(t *testing.T) {
+	t.Parallel()
 	watched := []struct {
 		dir     string
 		wantErr error
@@ -416,6 +434,7 @@ func TestCollectTargetsWatchedDirGitNames(t *testing.T) {
 	}
 	for _, w := range watched {
 		t.Run(w.dir, func(t *testing.T) {
+			t.Parallel()
 			tests := []struct {
 				name     string
 				file     string
@@ -432,6 +451,7 @@ func TestCollectTargetsWatchedDirGitNames(t *testing.T) {
 					continue
 				}
 				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
 					r := newTestRepo(t)
 					r.ignore(w.dir + "/")
 					r.Write(tt.file, "x\n")
@@ -464,6 +484,7 @@ func TestCollectTargetsWatchedDirGitNames(t *testing.T) {
 			if w.full {
 				for _, tc := range allowed {
 					t.Run(tc.name, func(t *testing.T) {
+						t.Parallel()
 						r := newTestRepo(t)
 						r.ignore(w.dir + "/")
 						tc.setup(r)
@@ -476,6 +497,7 @@ func TestCollectTargetsWatchedDirGitNames(t *testing.T) {
 			// Call selectTargets directly so git ls-files does not fail first
 			// and only checkTopDirGitNames walks w.dir/locked.
 			t.Run("unreadable_subdir", func(t *testing.T) {
+				t.Parallel()
 				requireNonRoot(t)
 				dir := t.TempDir()
 				mkdir(t, filepath.Join(dir, w.dir, "locked"))
@@ -506,6 +528,7 @@ func (b blockingRunner) Run(context.Context, string, ...string) ([]byte, error) 
 // passes with the cap at what the work tree holds, so no other limit is
 // what stops it one below.
 func TestCollectTargetsLimits(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		setup   func(r *testRepo)
@@ -553,6 +576,7 @@ func TestCollectTargetsLimits(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			r := newTestRepo(t)
 			tt.setup(r)
 			lim := wideLimits()
@@ -567,6 +591,7 @@ func TestCollectTargetsLimits(t *testing.T) {
 		})
 	}
 	t.Run("timeout", func(t *testing.T) {
+		t.Parallel()
 		r := newTestRepo(t)
 		release := make(chan struct{})
 		t.Cleanup(func() { close(release) })
@@ -635,7 +660,9 @@ func writeFile(t *testing.T, name, content string) {
 // TestTargetEntries: what a target file's entry cannot record stops the
 // pass with its rule, and a link that resolves to nothing is recorded.
 func TestTargetEntries(t *testing.T) {
+	t.Parallel()
 	t.Run("stops", func(t *testing.T) {
+		t.Parallel()
 		tests := []struct {
 			name    string
 			setup   func(t *testing.T, dir string)
@@ -660,6 +687,7 @@ func TestTargetEntries(t *testing.T) {
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 				dir := t.TempDir()
 				tt.setup(t, dir)
 				if _, err := stateOf(t, dir, wideLimits(), "x.go"); !errors.Is(err, tt.wantErr) {
@@ -670,6 +698,7 @@ func TestTargetEntries(t *testing.T) {
 	})
 
 	t.Run("unresolved_links_recorded", func(t *testing.T) {
+		t.Parallel()
 		dir := t.TempDir()
 		writeFile(t, filepath.Join(dir, "regular"), "x")
 		symlink(t, "missing", filepath.Join(dir, "enoent.go"))
@@ -711,6 +740,7 @@ func TestTargetEntries(t *testing.T) {
 	}
 	for _, tt := range special {
 		t.Run("recorded/"+tt.name, func(t *testing.T) {
+			t.Parallel()
 			dir := t.TempDir()
 			tt.setup(t, dir)
 			if _, err := stateWithin(t, dir, "x.go", settingsLocalPath); err != nil {
@@ -743,6 +773,7 @@ func TestTargetEntries(t *testing.T) {
 	}
 	for _, tt := range sizeTests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			dir := t.TempDir()
 			if err := os.WriteFile(filepath.Join(dir, "sparse"), nil, 0o600); err != nil {
 				t.Fatal(err)
@@ -771,6 +802,7 @@ func TestTargetEntries(t *testing.T) {
 	// A regular file swapped for a FIFO between lstat and the open fails the
 	// open instead of blocking until the timeout.
 	t.Run("fifo_swapped_in_after_lstat", func(t *testing.T) {
+		t.Parallel()
 		r := newTestRepo(t)
 		r.ignore(".envrc")
 		r.Write(".envrc", "export A=1\n")
@@ -808,6 +840,7 @@ func TestTargetEntries(t *testing.T) {
 // extended after the check, a file system that reports 0) is not read past
 // either cap.
 func TestHashCapped(t *testing.T) {
+	t.Parallel()
 	content := strings.Repeat("x", 1000)
 	tests := []struct {
 		name      string
@@ -821,6 +854,7 @@ func TestHashCapped(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			lim := wideLimits()
 			lim.fileBytes, lim.totalBytes = tt.fileBytes, 1000
 			total := tt.read
@@ -839,6 +873,7 @@ func TestHashCapped(t *testing.T) {
 // cannot pass for an entry boundary. The one path below, unquoted, would
 // write the same bytes as the absent entries of m and n.
 func TestTargetStateDigest(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "a.go"), "package a\n")
 	first, err := stateOf(t, dir, wideLimits(), "a.go")
@@ -892,6 +927,7 @@ func TestTargetStateDigest(t *testing.T) {
 // the path quoted in printable ASCII; a change to one file changes its line
 // only.
 func TestTargetRecordLines(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	// A name that is not valid UTF-8 cannot be created on APFS, so the last
 	// two are recorded as absent; the others exist. The fourth is valid
@@ -944,6 +980,7 @@ func TestTargetRecordLines(t *testing.T) {
 // the digest and the record independent of map order; enough paths are given
 // that an unsorted map iteration would almost never come out in order.
 func TestSelectTargetsSorted(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	var files []string
 	for i := 29; i >= 0; i-- {
@@ -970,6 +1007,7 @@ func TestSelectTargetsSorted(t *testing.T) {
 // have to drop below about 2,000 to fail it. The listing's own output cap is
 // osEnv's runner's, not exercised here.
 func TestDefaultLimitsAcceptDependencyTree(t *testing.T) {
+	t.Parallel()
 	r := newTestRepo(t)
 	r.ignore("node_modules/")
 	for i := range 3000 {
@@ -1026,6 +1064,7 @@ func removeFile(t *testing.T, name string) {
 // writes before the baseline, except the rows where a new ignore rule hides a
 // new file.
 func TestCheckStateIgnoredChanges(t *testing.T) {
+	t.Parallel()
 	ignored := []string{".claude/", ".agents/", ".env", ".envrc", "build/", "coverage.out"}
 	tests := []struct {
 		name   string
@@ -1111,6 +1150,7 @@ func TestCheckStateIgnoredChanges(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			r := ignoringRepo(t, tc.ignore...)
 			if tc.before != nil {
 				tc.before(t, r)
@@ -1130,6 +1170,7 @@ func TestCheckStateIgnoredChanges(t *testing.T) {
 	}
 	// A part compared earlier wins: the target files are not even listed.
 	t.Run("hooks_and_target_changed", func(t *testing.T) {
+		t.Parallel()
 		r := ignoringRepo(t, ignored...)
 		base := mustBaseline(t, r.Dir, r.Home)
 		r.WriteHook("pre-commit", "exit 0\n")
@@ -1148,6 +1189,7 @@ func TestCheckStateIgnoredChanges(t *testing.T) {
 // TestBaselineIgnoredFailures: a target file the pass cannot record stops
 // Baseline with its rule, and no baseline is returned.
 func TestBaselineIgnoredFailures(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		setup func(t *testing.T, r *testRepo)
@@ -1165,6 +1207,7 @@ func TestBaselineIgnoredFailures(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			r := ignoringRepo(t, "build/")
 			tc.setup(t, r)
 			w, _ := newTestWorktree(t, r.Dir, r.Home)
@@ -1178,6 +1221,7 @@ func TestBaselineIgnoredFailures(t *testing.T) {
 // TestBeginWithTargets: target files the user placed, and FIFOs at watched
 // paths, do not stop begin; the FIFOs git does not list are not targets.
 func TestBeginWithTargets(t *testing.T) {
+	t.Parallel()
 	r := ignoringRepo(t, ".claude/", ".envrc", "build/")
 	r.Write(settingsLocalPath, `{"permissions":{}}`)
 	r.Write(".envrc", "export A=1\n")
@@ -1218,8 +1262,10 @@ func recordTemps(t *testing.T, dir string) []string {
 // git directory, so a failed write leaves no temporary file and a link at the
 // record's name is replaced, not followed.
 func TestIgnoredRecordFiles(t *testing.T) {
+	t.Parallel()
 	gitDir := func(r *testRepo, name string) string { return filepath.Join(r.Dir, ".git", name) }
 	t.Run("begin_record_matches_baseline", func(t *testing.T) {
+		t.Parallel()
 		r := ignoringRepo(t, "build/")
 		r.Write("build/x.go", "package x\n")
 		base := mustBaseline(t, r.Dir, r.Home)
@@ -1235,6 +1281,7 @@ func TestIgnoredRecordFiles(t *testing.T) {
 		}
 	})
 	t.Run("target_changed_after_baseline", func(t *testing.T) {
+		t.Parallel()
 		r := ignoringRepo(t, "build/")
 		w, _ := newTestWorktree(t, r.Dir, r.Home)
 		base, err := w.Baseline(t.Context())
@@ -1253,6 +1300,7 @@ func TestIgnoredRecordFiles(t *testing.T) {
 		}
 	})
 	t.Run("stop_record", func(t *testing.T) {
+		t.Parallel()
 		r := ignoringRepo(t, "build/")
 		base := mustBaseline(t, r.Dir, r.Home)
 		r.Write("build/x.go", "package x\n")
@@ -1276,6 +1324,7 @@ func TestIgnoredRecordFiles(t *testing.T) {
 	// A stop record of an earlier round would pair with the new begin
 	// record in the guide's diff and name the wrong paths.
 	t.Run("begin_removes_earlier_stop_record", func(t *testing.T) {
+		t.Parallel()
 		r := ignoringRepo(t, "build/")
 		writeFile(t, gitDir(r, ignoredStopRecord), "earlier round\n")
 		mustBaseline(t, r.Dir, r.Home)
@@ -1286,6 +1335,7 @@ func TestIgnoredRecordFiles(t *testing.T) {
 	// Removing an absent record succeeds in a read-only git directory, so
 	// only writing the begin record fails.
 	t.Run("begin_record_not_writable", func(t *testing.T) {
+		t.Parallel()
 		requireNonRoot(t)
 		r := ignoringRepo(t, "build/")
 		w, _ := newTestWorktree(t, r.Dir, r.Home)
@@ -1302,6 +1352,7 @@ func TestIgnoredRecordFiles(t *testing.T) {
 		}
 	})
 	t.Run("record_name_blocked", func(t *testing.T) {
+		t.Parallel()
 		r := ignoringRepo(t, "build/")
 		w, _ := newTestWorktree(t, r.Dir, r.Home)
 		base, err := w.Baseline(t.Context())
@@ -1338,6 +1389,7 @@ func TestIgnoredRecordFiles(t *testing.T) {
 		}
 	})
 	t.Run("link_at_record_name", func(t *testing.T) {
+		t.Parallel()
 		r := ignoringRepo(t, "build/")
 		outside := filepath.Join(t.TempDir(), "outside")
 		writeFile(t, outside, "untouched")
@@ -1351,6 +1403,7 @@ func TestIgnoredRecordFiles(t *testing.T) {
 		}
 	})
 	t.Run("linked_worktree", func(t *testing.T) {
+		t.Parallel()
 		r := ignoringRepo(t, "build/")
 		dir := filepath.Join(t.TempDir(), "linked")
 		r.AddWorktree(dir, "linked-branch")

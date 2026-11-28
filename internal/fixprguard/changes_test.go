@@ -26,6 +26,7 @@ func enumerate(t *testing.T, r *testRepo) []change {
 }
 
 func TestEnumerateChanges(t *testing.T) {
+	t.Parallel()
 	r := newTestRepo(t)
 	r.Write("docs/notes/new.md", "x\ny")
 	r.Write("docs/notes/staged.md", "s\n")
@@ -84,17 +85,20 @@ func TestEnumerateChanges(t *testing.T) {
 	}
 
 	t.Run("content_mode_and_link_change_the_id", func(t *testing.T) {
+		t.Parallel()
+		subRepo := *r
+		subRepo.t = t
 		before := judgedSetID(got)
 		for _, edit := range []func(){
-			func() { r.Write(testFile, "one\nTWO\nfour\n") },
-			func() { _ = os.Chmod(filepath.Join(r.Dir, testFile), 0o700) }, //nolint:gosec // an executable bit on a test file
+			func() { subRepo.Write(testFile, "one\nTWO\nfour\n") },
+			func() { _ = os.Chmod(filepath.Join(subRepo.Dir, testFile), 0o700) }, //nolint:gosec // an executable bit on a test file
 			func() {
-				_ = os.Remove(filepath.Join(r.Dir, "docs/notes/link.md"))
-				_ = os.Symlink("b.md", filepath.Join(r.Dir, "docs/notes/link.md"))
+				_ = os.Remove(filepath.Join(subRepo.Dir, "docs/notes/link.md"))
+				_ = os.Symlink("b.md", filepath.Join(subRepo.Dir, "docs/notes/link.md"))
 			},
 		} {
 			edit()
-			after := judgedSetID(enumerate(t, r))
+			after := judgedSetID(enumerate(t, &subRepo))
 			if after == before {
 				t.Errorf("judged set ID unchanged after an edit")
 			}
@@ -104,6 +108,7 @@ func TestEnumerateChanges(t *testing.T) {
 }
 
 func TestEnumerateChangesFIFOReplacingTrackedFile(t *testing.T) {
+	t.Parallel()
 	// git cannot hash a FIFO, so the enumeration fails closed instead of
 	// judging the path.
 	r := newTestRepo(t)
@@ -120,7 +125,9 @@ func TestEnumerateChangesFIFOReplacingTrackedFile(t *testing.T) {
 }
 
 func TestChangeCaps(t *testing.T) {
+	t.Parallel()
 	t.Run("files", func(t *testing.T) {
+		t.Parallel()
 		r := newTestRepo(t)
 		for i := range maxChanges {
 			r.Write("docs/many/"+strconv.Itoa(i)+".md", "x\n")
@@ -136,6 +143,7 @@ func TestChangeCaps(t *testing.T) {
 		}
 	})
 	t.Run("digest_size", func(t *testing.T) {
+		t.Parallel()
 		r := newTestRepo(t)
 		r.Write("docs/exact.md", strings.Repeat("x", maxDigestBytes))
 		r.Write("docs/over.md", strings.Repeat("x", maxDigestBytes+1))
@@ -150,6 +158,7 @@ func TestChangeCaps(t *testing.T) {
 }
 
 func TestParseRawOutputRejected(t *testing.T) {
+	t.Parallel()
 	const rec = ":100644 100644 aaaaaaa 0000000 M\x00a.md\x00"
 	raw := func(b []byte) error { _, err := parseRaw(b); return err }
 	numstat := func(b []byte) error { _, err := parseNumstat(b); return err }
@@ -166,6 +175,7 @@ func TestParseRawOutputRejected(t *testing.T) {
 		{"numstat_duplicate", numstat, "1\t2\ta.md\x001\t2\ta.md\x00"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			if err := tc.parse([]byte(tc.out)); !errors.Is(err, ErrGitFailed) {
 				t.Errorf("parse = %v, want ErrGitFailed", err)
 			}
@@ -174,6 +184,7 @@ func TestParseRawOutputRejected(t *testing.T) {
 }
 
 func TestOpenRegularRefusesFIFO(t *testing.T) {
+	t.Parallel()
 	fifo := filepath.Join(t.TempDir(), "fifo")
 	if err := syscall.Mkfifo(fifo, 0o600); err != nil {
 		t.Fatal(err)
@@ -197,6 +208,7 @@ func TestOpenRegularRefusesFIFO(t *testing.T) {
 }
 
 func TestParseJudgedSetID(t *testing.T) {
+	t.Parallel()
 	valid := strings.Repeat("0a", digestLength/2)
 	if id, err := ParseJudgedSetID(valid); err != nil || string(id) != valid {
 		t.Errorf("ParseJudgedSetID(valid) = %q, %v", id, err)

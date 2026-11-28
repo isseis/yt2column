@@ -87,6 +87,7 @@ func (p prepared) wantNoCommit(t *testing.T, head string) {
 func indexOf(calls []string, call string) int { return slices.Index(calls, call) }
 
 func TestFinishOrder(t *testing.T) {
+	t.Parallel()
 	// The fake already holds make fmt, test and lint to their order; the
 	// staging and the commit must follow the last of them.
 	p := prepareRound(t, fixTestFile)
@@ -101,6 +102,7 @@ func TestFinishOrder(t *testing.T) {
 }
 
 func TestFinishAbsorbsFormatting(t *testing.T) {
+	t.Parallel()
 	p := prepareRound(t, func(r *testRepo) { r.Write("internal/x/x.go", "package  x\n") })
 	format := func() error {
 		p.r.Write("internal/x/x.go", "package x\n\n// F is formatted.\nfunc F() {}\n")
@@ -128,6 +130,7 @@ func mustInspectPaths(t *testing.T, dir, home string, base Baseline, path string
 }
 
 func TestFinishStopsOnJudgedSetMismatch(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		edit func(t *testing.T, r *testRepo)
@@ -141,6 +144,7 @@ func TestFinishStopsOnJudgedSetMismatch(t *testing.T) {
 		{"mode_changed", func(t *testing.T, r *testRepo) { chmod(t, filepath.Join(r.Dir, testFile), 0o700) }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			p := prepareRound(t, fixTestFile)
 			head := p.r.Head()
 			tc.edit(t, p.r)
@@ -153,6 +157,7 @@ func TestFinishStopsOnJudgedSetMismatch(t *testing.T) {
 }
 
 func TestFinishStopsWhenBuildChecksRewrite(t *testing.T) {
+	t.Parallel()
 	p := prepareRound(t, fixTestFile)
 	head := p.r.Head()
 	rewrite := func() error { p.r.Write(testFile, "rewritten by a test\n"); return nil }
@@ -166,6 +171,7 @@ func TestFinishStopsWhenBuildChecksRewrite(t *testing.T) {
 	}
 	p.wantNoCommit(t, head)
 	t.Run("oversized_file", func(t *testing.T) {
+		t.Parallel()
 		// Over the line-count cap the file is out of scope, but its content
 		// is still pinned.
 		big := strings.Repeat("x", maxDigestBytes+1)
@@ -175,6 +181,7 @@ func TestFinishStopsWhenBuildChecksRewrite(t *testing.T) {
 		wantJudgedSetChanged(t, err)
 	})
 	t.Run("formatting_changes_the_paths", func(t *testing.T) {
+		t.Parallel()
 		p := prepareRound(t, fixTestFile)
 		addFile := func() error { p.r.Write("docs/notes/fmt.md", "x\n"); return nil }
 		// make test and lint are not scripted: the run stops after fmt.
@@ -184,7 +191,9 @@ func TestFinishStopsWhenBuildChecksRewrite(t *testing.T) {
 }
 
 func TestFinishStagesJudgedPathsOnly(t *testing.T) {
+	t.Parallel()
 	t.Run("pathspec_magic_names", func(t *testing.T) {
+		t.Parallel()
 		// Taken as pathspecs, ":!a.md" excludes a.md (staging everything
 		// else) and ":(top)b.md" names a missing b.md at the top, which fails
 		// the add; only a literal add stages these files as named.
@@ -205,6 +214,7 @@ func TestFinishStagesJudgedPathsOnly(t *testing.T) {
 }
 
 func TestFinishRefusesUnpinnedChange(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		edit func(r *testRepo)
@@ -222,6 +232,7 @@ func TestFinishRefusesUnpinnedChange(t *testing.T) {
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			p := prepareRound(t, tc.edit)
 			if got := mustInspect(t, p.r.Dir, p.r.Home, p.base).OutOfScope; len(got) != 1 || got[0].Kind != ChangeOther {
 				t.Errorf("OutOfScope = %+v, want one other change", got)
@@ -234,6 +245,7 @@ func TestFinishRefusesUnpinnedChange(t *testing.T) {
 }
 
 func TestFinishStageRollback(t *testing.T) {
+	t.Parallel()
 	r := newTestRepo(t)
 	// git add runs this hook; the file it leaves behind makes the index check
 	// fail after staging.
@@ -254,6 +266,7 @@ func TestFinishStageRollback(t *testing.T) {
 }
 
 func TestFinishPostCommitTreeCheck(t *testing.T) {
+	t.Parallel()
 	r := newTestRepo(t)
 	// The hook stages a change the judged set does not hold.
 	r.WriteHook("pre-commit", "echo hook >> docs/notes/b.md\ngit add docs/notes/b.md\n")
@@ -269,6 +282,7 @@ func TestFinishPostCommitTreeCheck(t *testing.T) {
 		t.Fatalf("no commit was made: %v", router.Calls)
 	}
 	t.Run("commit_inserted_by_hook", func(t *testing.T) {
+		t.Parallel()
 		// After the commit the hook moves HEAD to a commit of its own on top,
 		// with the same tree, so only the parent shows it.
 		r := newTestRepo(t)
@@ -283,6 +297,7 @@ func TestFinishPostCommitTreeCheck(t *testing.T) {
 		}
 	})
 	t.Run("branch_switched_by_hook", func(t *testing.T) {
+		t.Parallel()
 		// After the commit the hook moves HEAD to another branch at the same
 		// commit; the hook exists before the baseline, so the hooks match.
 		r := newTestRepo(t)
@@ -301,6 +316,7 @@ func TestFinishPostCommitTreeCheck(t *testing.T) {
 		}
 	})
 	t.Run("clean_filter", func(t *testing.T) {
+		t.Parallel()
 		// The filter is configured before the baseline, so the state checks
 		// pass; only the committed blob differs from the work tree.
 		r := newTestRepo(t)
@@ -318,6 +334,7 @@ func TestFinishPostCommitTreeCheck(t *testing.T) {
 }
 
 func TestFinishStopsWhenHooksChangeConfig(t *testing.T) {
+	t.Parallel()
 	setFsmonitor := "printf '[core]\\n\\tfsmonitor = true\\n' >> .git/config\n"
 	for _, tc := range []struct {
 		name, hook, script, last string
@@ -330,6 +347,7 @@ func TestFinishStopsWhenHooksChangeConfig(t *testing.T) {
 		{"after_failed_commit", "pre-commit", setFsmonitor + "exit 1\n", "git commit"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			r := newTestRepo(t)
 			r.WriteHook(tc.hook, tc.script)
 			base := mustBaseline(t, r.Dir, r.Home)
@@ -351,6 +369,7 @@ func TestFinishStopsWhenHooksChangeConfig(t *testing.T) {
 }
 
 func TestFinishBuildCheckRunnerFailure(t *testing.T) {
+	t.Parallel()
 	// make that did not run is a build check failure without output.
 	p := prepareRound(t, fixTestFile)
 	step := makeStep(StageFmt, nil)
@@ -365,6 +384,7 @@ func TestFinishBuildCheckRunnerFailure(t *testing.T) {
 }
 
 func TestFinishCommitSubject(t *testing.T) {
+	t.Parallel()
 	p := prepareRound(t, fixTestFile)
 	result := p.mustFinish(t)
 	if got := p.storedMessage(t, result.Commit); got != "fix: address PR #"+testPR+" review comments\n" {
@@ -385,6 +405,7 @@ func subjectAndBody(body string) string {
 }
 
 func TestFinishCommitBody(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name, body, want string
 	}{
@@ -392,6 +413,7 @@ func TestFinishCommitBody(t *testing.T) {
 		{name: "trailing_spaces", body: correction + "  \n", want: subjectAndBody(correction + "  \n")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			p := prepareRound(t, fixTestFile)
 			result, _, err := p.finishBody(t, writeTextFile(t, tc.body), buildCheckSteps()...)
 			if err != nil || !result.Committed {
@@ -403,6 +425,7 @@ func TestFinishCommitBody(t *testing.T) {
 		})
 	}
 	t.Run("file_rewritten_during_build_checks", func(t *testing.T) {
+		t.Parallel()
 		p := prepareRound(t, fixTestFile)
 		file := writeTextFile(t, correction+"\n")
 		rewrite := func() error { return os.WriteFile(file, []byte("Editorial correction: rewritten\n"), 0o600) }
@@ -419,11 +442,13 @@ func TestFinishCommitBody(t *testing.T) {
 // TestFinishRejectsBodyFile: a body file finish refuses stops the run before
 // any make target (the fake has no step) and before any commit.
 func TestFinishRejectsBodyFile(t *testing.T) {
+	t.Parallel()
 	for name, body := range map[string]string{
 		"other_line":         correction + "\nSigned-off-by: x\n",
 		"rejected_as_a_file": "",
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			p := prepareRound(t, fixTestFile)
 			head := p.r.Head()
 			_, _, err := p.finishBody(t, writeTextFile(t, body))
@@ -437,6 +462,7 @@ func TestFinishRejectsBodyFile(t *testing.T) {
 		"coderabbitai": "@coderabbitai",
 	} {
 		t.Run("mention/"+name, func(t *testing.T) {
+			t.Parallel()
 			// The '@' rule would refuse a mention too; errMention shows the
 			// mention check itself refused it.
 			p := prepareRound(t, fixTestFile)
@@ -449,6 +475,7 @@ func TestFinishRejectsBodyFile(t *testing.T) {
 		})
 	}
 	t.Run("checked_before_the_work_tree", func(t *testing.T) {
+		t.Parallel()
 		// The work tree no longer matches the judged set, so a comparison
 		// made first would stop with a judged-set change instead.
 		p := prepareRound(t, fixTestFile)
@@ -459,6 +486,7 @@ func TestFinishRejectsBodyFile(t *testing.T) {
 		}
 	})
 	t.Run("file_inside_the_work_tree", func(t *testing.T) {
+		t.Parallel()
 		// A valid body written in the work tree is a change made after the
 		// judgment.
 		p := prepareRound(t, fixTestFile)
@@ -475,6 +503,7 @@ func TestFinishRejectsBodyFile(t *testing.T) {
 // stored message is not the one finish built, so it stops without a SHA;
 // without one the message is not compared, as before body files existed.
 func TestFinishDetectsRewrittenMessage(t *testing.T) {
+	t.Parallel()
 	prepare := func(t *testing.T) prepared {
 		r := newTestRepo(t)
 		r.WriteHook("commit-msg", "printf 'Signed-off-by: hook\\n' >> \"$1\"\n")
@@ -483,6 +512,7 @@ func TestFinishDetectsRewrittenMessage(t *testing.T) {
 		return prepared{r: r, base: base, judged: mustInspect(t, r.Dir, r.Home, base).JudgedSet}
 	}
 	t.Run("with_body", func(t *testing.T) {
+		t.Parallel()
 		p := prepare(t)
 		result, _, err := p.finishBody(t, writeTextFile(t, correction+"\n"), buildCheckSteps()...)
 		wantStateParts(t, err, PartHead)
@@ -491,6 +521,7 @@ func TestFinishDetectsRewrittenMessage(t *testing.T) {
 		}
 	})
 	t.Run("without_body", func(t *testing.T) {
+		t.Parallel()
 		p := prepare(t)
 		result := p.mustFinish(t)
 		if got := p.storedMessage(t, result.Commit); !strings.HasSuffix(got, "Signed-off-by: hook\n") {
@@ -500,6 +531,7 @@ func TestFinishDetectsRewrittenMessage(t *testing.T) {
 }
 
 func TestFinishEmptyJudgedSet(t *testing.T) {
+	t.Parallel()
 	p := prepareRound(t, func(*testRepo) {})
 	head := p.r.Head()
 	result, _, err := p.finish(t)
@@ -510,6 +542,7 @@ func TestFinishEmptyJudgedSet(t *testing.T) {
 }
 
 func TestFinishBuildCheckFailureOutput(t *testing.T) {
+	t.Parallel()
 	p := prepareRound(t, fixTestFile)
 	head := p.r.Head()
 	stdout := strings.Repeat("o", maxBuildOutputTail)
@@ -532,6 +565,7 @@ func TestFinishBuildCheckFailureOutput(t *testing.T) {
 }
 
 func TestFinishAfterOutOfScope(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name       string
 		edit       func(r *testRepo)
@@ -549,6 +583,7 @@ func TestFinishAfterOutOfScope(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			p := prepareRound(t, tc.edit)
 			w, _ := newTestWorktree(t, p.r.Dir, p.r.Home)
 			inspection, err := w.Inspect(t.Context(), p.base, threadAt(tc.threadPath))
@@ -566,6 +601,7 @@ func TestFinishAfterOutOfScope(t *testing.T) {
 }
 
 func TestInspectLeavesWorkTree(t *testing.T) {
+	t.Parallel()
 	r := newTestRepo(t)
 	base := mustBaseline(t, r.Dir, r.Home)
 	fixTestFile(r)
@@ -587,6 +623,7 @@ func TestInspectLeavesWorkTree(t *testing.T) {
 }
 
 func TestPushRechecks(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name     string
 		edit     func(t *testing.T, p prepared, commit string)
@@ -605,6 +642,7 @@ func TestPushRechecks(t *testing.T) {
 		}, []string{PartRemote}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			p := prepareRound(t, fixTestFile)
 			commit := p.mustFinish(t).Commit
 			tc.edit(t, p, commit)
@@ -624,6 +662,7 @@ func TestPushRechecks(t *testing.T) {
 		})
 	}
 	t.Run("commit_not_on_the_baseline", func(t *testing.T) {
+		t.Parallel()
 		// HEAD is the given SHA, but it is not a child of the baseline's HEAD.
 		p := prepareRound(t, fixTestFile)
 		p.mustFinish(t)
@@ -636,6 +675,7 @@ func TestPushRechecks(t *testing.T) {
 }
 
 func TestPushExplicitRefspec(t *testing.T) {
+	t.Parallel()
 	r := newTestRepo(t)
 	// A configured push refspec would send the branch elsewhere, and
 	// followTags would send a tag along.
@@ -660,6 +700,7 @@ func TestPushExplicitRefspec(t *testing.T) {
 }
 
 func TestPushFailure(t *testing.T) {
+	t.Parallel()
 	p := prepareRound(t, fixTestFile)
 	commit := p.mustFinish(t).Commit
 	hooks := filepath.Join(p.r.Remote, "hooks")
@@ -681,7 +722,9 @@ func TestPushFailure(t *testing.T) {
 }
 
 func TestRoundStopsAtRightPlace(t *testing.T) {
+	t.Parallel()
 	t.Run("file_added_after_inspect", func(t *testing.T) {
+		t.Parallel()
 		p := prepareRound(t, fixTestFile)
 		p.r.Write("docs/notes/while_asking.md", "x\n")
 		_, _, err := p.finish(t)
@@ -689,6 +732,7 @@ func TestRoundStopsAtRightPlace(t *testing.T) {
 		wantJudgedSetChanged(t, err)
 	})
 	t.Run("hook_added_during_fix", func(t *testing.T) {
+		t.Parallel()
 		r := newTestRepo(t)
 		base := mustBaseline(t, r.Dir, r.Home)
 		fixTestFile(r)
@@ -698,6 +742,7 @@ func TestRoundStopsAtRightPlace(t *testing.T) {
 		wantStateParts(t, err, PartHooks)
 	})
 	t.Run("remote_moved_before_inspect", func(t *testing.T) {
+		t.Parallel()
 		r := newTestRepo(t)
 		base := mustBaseline(t, r.Dir, r.Home)
 		fixTestFile(r)
@@ -712,6 +757,7 @@ func TestRoundStopsAtRightPlace(t *testing.T) {
 		wantStateParts(t, err, PartRemote)
 	})
 	t.Run("replaced_base_commit", func(t *testing.T) {
+		t.Parallel()
 		// The agent stages a Makefile and replaces the baseline's commit
 		// with one whose tree holds it, so a diff through replace refs
 		// would not show the Makefile.
@@ -729,6 +775,7 @@ func TestRoundStopsAtRightPlace(t *testing.T) {
 		}
 	})
 	t.Run("out_of_scope_change", func(t *testing.T) {
+		t.Parallel()
 		r := newTestRepo(t)
 		base := mustBaseline(t, r.Dir, r.Home)
 		fixTestFile(r)
@@ -738,6 +785,7 @@ func TestRoundStopsAtRightPlace(t *testing.T) {
 		}
 	})
 	t.Run("build_checks_rewrite_in_scope_file", func(t *testing.T) {
+		t.Parallel()
 		p := prepareRound(t, fixTestFile)
 		rewrite := func() error { p.r.Write("docs/notes/b.md", "rewritten\n"); return nil }
 		_, router, err := p.finish(t, makeStep(StageFmt, nil), makeStep(StageTest, nil), makeStep(StageLint, rewrite))
@@ -753,6 +801,7 @@ func TestRoundStopsAtRightPlace(t *testing.T) {
 // finish and push. Each step rewrites the shared configuration's branch
 // settings of that branch only, and none stops the round.
 func TestRoundIgnoresOtherBranchConfig(t *testing.T) {
+	t.Parallel()
 	r := newTestRepo(t)
 	base := mustBaseline(t, r.Dir, r.Home)
 	other := filepath.Join(r.Home, "other")
@@ -798,7 +847,9 @@ func prepareIgnoringRound(t *testing.T) prepared {
 // make lint; neither commits. The make fake fails any target it has no step
 // for.
 func TestFinishStopsOnIgnoredChange(t *testing.T) {
+	t.Parallel()
 	t.Run("before_finish", func(t *testing.T) {
+		t.Parallel()
 		p := prepareIgnoringRound(t)
 		head := p.r.Head()
 		p.r.Write("build/x_test.go", "package x\n")
@@ -810,6 +861,7 @@ func TestFinishStopsOnIgnoredChange(t *testing.T) {
 		p.wantNoCommit(t, head)
 	})
 	t.Run("written_by_make_test", func(t *testing.T) {
+		t.Parallel()
 		p := prepareIgnoringRound(t)
 		head := p.r.Head()
 		write := func() error {

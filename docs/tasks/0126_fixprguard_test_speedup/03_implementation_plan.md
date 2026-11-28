@@ -109,6 +109,11 @@
     -   理由: `names` に削除の一覧を渡す形にすると、スクリプトの変更が大きくなる。削除の一覧はコミットの差分から読めるので、読み合わせで足りる。
     -   作成者が決めた。PR のレビューで確かめてもらう。ADR: なし。
 
+### 1.6. 実装の際に決めたこと（2026-11-28）
+
+-   **AC-12 の短縮目標を 60% 以下に変更する:** PR-4 の初回計測で `internal/fixprguard` は 30.53%（PASS）だったが、`cmd/fixprguard` は PR-1 で新設した直列テスト `TestRunInProcessDir`（7.41s）の影響で 55.55%（FAIL）となった。要件書 1 章のとおり目標を 60% 以下に変更し、`_checks/gotest.sh` の `measure` の閾値を `0.5` から `0.6` に合わせた。`measure` の破壊の確かめと本計測をやり直し、初回（50% 基準）と再計測（60% 基準）の両方を 5.2 節と PR-4 の説明に記録する（AC-13）。
+    -   人が選んだ。ADR: なし（このタスクの完了の条件の変更で、ほかのタスクを縛らない）。
+
 ## 2. 実装のステップ
 
 ### フェーズ 1: 見込みの確かめと製品の変更
@@ -362,50 +367,50 @@ PR-4 は製品を変えない。
 
 -   **ファイル:** 2 つのパッケージの `*_test.go`
 -   **作業:**
-    -   [ ] 設計書 4 章の一覧にないテストとサブテストに `t.Parallel()` を足す。
-    -   [ ] 設計書 4 章の「実装の際に確かめること」の 4 つを、テストごとに確かめる。並列にできないテストが見つかったら、止めて人に尋ねる。
-    -   [ ] `testshape parallel` を実行し、`t.Parallel()` を呼ばないテストが一覧のものだけであることを確かめる（AC-01、AC-03）。
+    -   [x] 設計書 4 章の一覧にないテストとサブテストに `t.Parallel()` を足す。
+    -   [x] 設計書 4 章の「実装の際に確かめること」の 4 つを、テストごとに確かめる。並列にできないテストが見つかったら、止めて人に尋ねる。
+    -   [x] `testshape parallel` を実行し、`t.Parallel()` を呼ばないテストが一覧のものだけであることを確かめる（AC-01、AC-03）。
 -   **完了の条件:** `make test` が通る。
 
 #### ステップ 4-2: 競合の確かめ
 
 -   **作業:**
-    -   [ ] `gotest.sh race` を実行する（AC-02。`-race -count=3` と `-race -count=1 -cpu 1,4`）。失敗したら原因を直す。実時間の待ちで失敗するときは、判定の時間を変えずに、止めて人に尋ねる（設計書 4 章）。
+    -   [x] `gotest.sh race` を実行する（AC-02。`-race -count=3` と `-race -count=1 -cpu 1,4`）。失敗したら原因を直す。実時間の待ちで失敗するときは、判定の時間を変えずに、止めて人に尋ねる（設計書 4 章）。
 -   **完了の条件:** `gotest.sh race` が成功する。
 
 #### ステップ 4-3: ひな形のコピー（最適化のコミット）
 
 -   **ファイル:** `internal/fixprguard/fixprguardtest/template.go`（追加）、2 つの `testmain_test.go`、`internal/fixprguard/test_helpers_git.go`、`cmd/fixprguard/test_helpers.go`、`docs/dev/conventions/package_reference.md`
 -   **作業:**
-    -   [ ] 設計書 3.4 節の `Template`・`BuildTemplate`・`Copy` を書く。コピーと設定の書き直しは設計書 3.6 節のとおりである。
-    -   [ ] 2 つのパッケージで、前の `newTestRepo` の手順を、1.3 節の形の `build` にする。`TestMain` は、隔離の後に `BuildTemplate` で 1 回だけひな形を作る。
-    -   [ ] `newTestRepo` を、ひな形のコピーと `git update-index -q --refresh` の 1 回にする。
-    -   [ ] `build` の差分を前の `newTestRepo` と読み合わせ、git の引数・順序・書くファイルが変わらないことを PR の説明に書く（設計書 3.6 節の「前の手順との一致」）。
-    -   [ ] `testshape fixture-git <AC-12 の前のコミット>` を実行し、`build` の git の引数と順序が前の `newTestRepo` と同じであることと、テストがリポジトリを受け取るまでの git の起動の数を確かめる（AC-10、AC-11）。判定できないときは、止めて人に尋ねる（1.3 節）。結果は 5.1 節の実行の記録に書く。
-    -   [ ] `package_reference.md` の `fixprguardtest` の行に、足した公開の名前を加える。
-    -   [ ] 正しさの義務をコミットメッセージに書く（設計書 1.3 節）。このコミットはステップ 4-4 のテストと別にする。
+    -   [x] 設計書 3.4 節の `Template`・`BuildTemplate`・`Copy` を書く。コピーと設定の書き直しは設計書 3.6 節のとおりである。
+    -   [x] 2 つのパッケージで、前の `newTestRepo` の手順を、1.3 節の形の `build` にする。`TestMain` は、隔離の後に `BuildTemplate` で 1 回だけひな形を作る。
+    -   [x] `newTestRepo` を、ひな形のコピーと `git update-index -q --refresh` の 1 回にする。
+    -   [x] `build` の差分を前の `newTestRepo` と読み合わせ、git の引数・順序・書くファイルが変わらないことを PR の説明に書く（設計書 3.6 節の「前の手順との一致」）。
+    -   [x] `testshape fixture-git <AC-12 の前のコミット>` を実行し、`build` の git の引数と順序が前の `newTestRepo` と同じであることと、テストがリポジトリを受け取るまでの git の起動の数を確かめる（AC-10、AC-11）。判定できないときは、止めて人に尋ねる（1.3 節）。結果は 5.1 節の実行の記録に書く。
+    -   [x] `package_reference.md` の `fixprguardtest` の行に、足した公開の名前を加える。
+    -   [x] 正しさの義務をコミットメッセージに書く（設計書 1.3 節）。このコミットはステップ 4-4 のテストと別にする。
 -   **完了の条件:** `make test` と `make lint` が通る。
 
 #### ステップ 4-4: ひな形のテスト
 
 -   **ファイル:** `internal/fixprguard/fixprguardtest/template_test.go`、`internal/fixprguard/fixture_test.go`、`cmd/fixprguard/fixture_test.go`（追加）
 -   **作業:**
-    -   [ ] `Copy` が設定の行の形の不一致と特別なファイルで失敗するテストを書く（設計書 8.3 節）。
-    -   [ ] 各パッケージに、並列の同等性のテストと分離のテストを書く（設計書 3.6 節）。同等性のテストには、設計書 3.6 節の値に加えて、index の stat の情報がコピー先のファイルと合っていることの確かめ（`GIT_OPTIONAL_LOCKS=0` の下で `git diff-files --quiet` が成功すること）を入れる。その確かめより前に、index を書き直しうる git（`git status` など）を動かさない。`git status --porcelain` は stat の違いを報告しないので、この確かめの代わりにならない（1.4 節）。
-    -   [ ] それぞれについて、確かめる対象を壊して失敗することを確かめ、コミットメッセージに書く。同等性のテストでは、少なくとも、`Copy` が 2 つの設定の値を書き直さないときと、`update-index --refresh` を外したときに失敗することを確かめる。
+    -   [x] `Copy` が設定の行の形の不一致と特別なファイルで失敗するテストを書く（設計書 8.3 節）。
+    -   [x] 各パッケージに、並列の同等性のテストと分離のテストを書く（設計書 3.6 節）。同等性のテストには、設計書 3.6 節の値に加えて、index の stat の情報がコピー先のファイルと合っていることの確かめ（`GIT_OPTIONAL_LOCKS=0` の下で `git diff-files --quiet` が成功すること）を入れる。その確かめより前に、index を書き直しうる git（`git status` など）を動かさない。`git status --porcelain` は stat の違いを報告しないので、この確かめの代わりにならない（1.4 節）。
+    -   [x] それぞれについて、確かめる対象を壊して失敗することを確かめ、コミットメッセージに書く。同等性のテストでは、少なくとも、`Copy` が 2 つの設定の値を書き直さないときと、`update-index --refresh` を外したときに失敗することを確かめる。
 -   **完了の条件:** `make test` と `make lint` が通る。`testshape parallel` が成功する。
 
 #### ステップ 4-5: 計測と PR-4 の確かめ
 
 -   **作業:**
-    -   [ ] `gotest.sh race` を、ステップ 4-3 と 4-4 の後の木でもう一度実行し、実行したコミットとともに記録する（AC-02）。
-    -   [ ] `gotest.sh measure <前のコミット>` を実行する（AC-12、AC-13）。前のコミットは、ステップ 1-8 で 5.2 節に書いたマージベースである。目標に届かないときは、PR を開く前に止め、結果と原因の見立てを人に示す。
-    -   [ ] 前のコミットと今の木の間で、2 つのパッケージを変えたこのタスク以外のコミットを、PR の説明に書く（1.3 節）。
-    -   [ ] 機械（OS と CPU のコア数、`GOMAXPROCS`）、Go の版、前後のコミット、パッケージごと・回ごとの時間を PR の説明に書く。3 回を超えて繰り返したときは、すべての回と判定に使った 3 回を書く。PR-3 で記録した削除で減った時間も書く（1.5 節）。
-    -   [ ] AC-10 の前後の数（前は 13 回と 12 回、後は 1 回。ひな形は別に 13 回と 12 回）と、`testshape fixture-git` の出力を PR の説明に書く（設計書 3.6 節）。
-    -   [ ] `make coverage-compare BASE=<マージベース>`、`gotest.sh names <マージベース>`、`gotest.sh unchanged <マージベース>` を実行し、5.2 節の PR-4 の欄に記録する（AC-14、AC-15、AC-09）。
-    -   [ ] `testshape parallel`、`testshape process-state`、`testshape env-source` を実行して記録する（AC-01、AC-04、AC-05）。
-    -   [ ] 期待値を変えたテストと準備の変更を記録する（AC-16）。
+    -   [x] `gotest.sh race` を、ステップ 4-3 と 4-4 の後の木でもう一度実行し、実行したコミットとともに記録する（AC-02）。
+    -   [x] `gotest.sh measure <前のコミット>` を実行する（AC-12、AC-13）。前のコミットは、ステップ 1-8 で 5.2 節に書いたマージベースである。目標に届かないときは、PR を開く前に止め、結果と原因の見立てを人に示す。
+    -   [x] 前のコミットと今の木の間で、2 つのパッケージを変えたこのタスク以外のコミットを、PR の説明に書く（1.3 節）。
+    -   [x] 機械（OS と CPU のコア数、`GOMAXPROCS`）、Go の版、前後のコミット、パッケージごと・回ごとの時間を PR の説明に書く。3 回を超えて繰り返したときは、すべての回と判定に使った 3 回を書く。PR-3 で記録した削除で減った時間も書く（1.5 節）。
+    -   [x] AC-10 の前後の数（前は 13 回と 12 回、後は 1 回。ひな形は別に 13 回と 12 回）と、`testshape fixture-git` の出力を PR の説明に書く（設計書 3.6 節）。
+    -   [x] `make coverage-compare BASE=<マージベース>`、`gotest.sh names <マージベース>`、`gotest.sh unchanged <マージベース>` を実行し、5.2 節の PR-4 の欄に記録する（AC-14、AC-15、AC-09）。
+    -   [x] `testshape parallel`、`testshape process-state`、`testshape env-source` を実行して記録する（AC-01、AC-04、AC-05）。
+    -   [x] 期待値を変えたテストと準備の変更を記録する（AC-16）。
 -   **完了の条件:** 上の結果が PR の説明と 5 章にある。
 
 ### PR-4 作成ポイント: parallel fixprguard tests with template fixtures
@@ -422,10 +427,10 @@ PR-4 は製品を変えない。
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1204
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装の順序とマイルストーン
 
@@ -501,14 +506,12 @@ PR-4 は製品を変えない。
     -   `measure`: PR-4 を作る前（ステップ 4-5）。`/runplan` の実行者が行う。
 -   **破壊の確かめの時期:** `estimate`・`names`・`unchanged`・`race` はステップ 1-1、`measure` はステップ 4-5（前の木と後の木が違うとき）。`names` は、時間の行を足したステップ 3-1 でやり直す。
 -   **テスト:** コミットしない。
--   **破壊の記録:** 対象コミット `d05bf0313787ccc59c7e739247e53e7e16f369d0`（初回 `e2a5e8494c0b84e0fee6c38851cb5e70cc9b5c78` の後、レビュー修正に合わせて再確認）
-    -   `unchanged`: `internal/fixprguard/types.go` の `const Protocol = 9` を `10` に書き換えて実行し、終了コード 1（`protocol=FAIL`）で失敗することを確認した。同様に `docs/dev/guides/fixprguard_guide.md` に変更を加えて実行し、終了コード 1（`guide=FAIL`）で失敗することを確認した。
-    -   `race`: `internal/fixprguard/changes_test.go` の `TestParseJudgedSetID` に一時的に `panic` を入れて実行し、終了コード 1（`go test failed`）で失敗することを確認した。
-    -   `names`: `internal/fixprguard/changes_test.go` の `TestParseJudgedSetID` に一時的に `t.Skip` を入れて実行し、終了コード 1（`missing=1`, `became_skip=1`, `status=FAIL`）で失敗することを確認した。
-    -   `estimate`: `GOMAXPROCS=1` を指定して並列度を 1 に下げた前提の破壊で実行し、両パッケージとも下限が 50% を超えて終了コード 1（`status=FAIL`）で失敗することを確認した。
-    -   `measure`: PR-4 で実施予定。
--   **破壊の記録（`names` のやり直し）:** 対象コミット `7b77d80cd9e56e1dd13791c166a1398171a10bbf`（ステップ 3-1 で時間の行を足した後）
-    -   `names`: `internal/fixprguard/changes_test.go` の `TestParseJudgedSetID` に一時的に `t.Skip` を入れ、`names 7b77d80cd9e56e1dd13791c166a1398171a10bbf` を実行し、終了コード 1（`missing=1`, `became_skip=1`, `status=FAIL`）で失敗することを確認した。2 つの木のパッケージの時間の行（`elapsed <パッケージ> base=… head=…`）が出ることも確認した。戻して作業ツリーがきれいなことを確認した。
+-   **破壊の記録:** 対象コミット `35977d6fda089ed353331f1fa34c4e7cda356d07`（ステップ 4-5 で `measure` の閾値を 0.6 に合わせた後の最新の `_checks/gotest.sh` に対する統一記録。再現可能な 4 つのモードをやり直し、`estimate` は実行条件が実装前のためやり直せない旨を記録する）
+    -   `unchanged`: `48ee610c8c9595c70ba320aa33a760a68647f3c7` 上で `internal/fixprguard/types.go` の `const Protocol = 9` を `10` に、`docs/dev/guides/fixprguard_guide.md` の先頭行に一時的な変更を加えて `gotest.sh unchanged e086fee14de69eec4fa71168927d59baa8e36782` を実行し、終了コード 1（`guide=FAIL`, `protocol=FAIL`, `status=FAIL`）で失敗することを確認した。戻して作業ツリーがきれいなことを確認した。
+    -   `race`: `48ee610c8c9595c70ba320aa33a760a68647f3c7` 上で `internal/fixprguard/changes_test.go` の `TestEnumerateChanges` に一時的に `panic("break")` を入れて実行し、終了コード 1（`go test failed`）で失敗することを確認した。戻して作業ツリーがきれいなことを確認した。
+    -   `names`: `48ee610c8c9595c70ba320aa33a760a68647f3c7` 上で `internal/fixprguard/changes_test.go` の `TestEnumerateChanges` に一時的に `t.Skip("break")` を入れて `gotest.sh names 48ee610c8c9595c70ba320aa33a760a68647f3c7` を実行し、終了コード 1（`missing=2`, `became_skip=1`, `status=FAIL`）で失敗することと、2 つの木のパッケージの時間の行（`elapsed <パッケージ> base=… head=…`）が出ることを確認した。戻して作業ツリーがきれいなことを確認した。
+    -   `measure`: `gotest.sh measure HEAD`（短縮なしの前後同一コミット比較）を実行し、`internal/fixprguard` が `ratio_pct=88.16%`（`status=FAIL`）、`cmd/fixprguard` が `ratio_pct=97.9%`（`status=FAIL`）、終了コード 1 で失敗することを確認した。
+    -   `estimate`: 実行条件が実装前（ステップ 1-1）であり、PR-1〜PR-4 の実装後の木ではやり直せない。ステップ 1-1（対象コミット `d05bf0313787ccc59c7e739247e53e7e16f369d0`）で `GOMAXPROCS=1` により並列度を 1 に下げた前提の破壊で両パッケージとも 50% を超えて終了コード 1（`status=FAIL`）で失敗することを確認済みであり、`35977d6fda089ed353331f1fa34c4e7cda356d07` では `estimate` の処理を変更していない。
 -   **実行の記録:**
     -   `estimate`（対象コミット `d05bf0313787ccc59c7e739247e53e7e16f369d0`、判定対象 `origin/main` = `fb71447bb8bd1baa47e113573db52939b41146cd`、両パッケージとも 50% 以下で `PASS`）:
 
@@ -540,6 +543,24 @@ PR-4 は製品を変えない。
           status=PASS
         ```
 
+    -   `race`（ステップ 4-2、対象コミット `2b2420f79de61cb5b4deb864b47a996498bd5f05`）:
+
+        ```text
+        mode=race
+        head=2b2420f79de61cb5b4deb864b47a996498bd5f05
+        count3=PASS
+        cpu14=PASS
+        ```
+
+    -   `race`（ステップ 4-5、ひな形コピー・テスト追加・レビュー修正後、対象コミット `48ee610c8c9595c70ba320aa33a760a68647f3c7`）:
+
+        ```text
+        mode=race
+        head=48ee610c8c9595c70ba320aa33a760a68647f3c7
+        count3=PASS
+        cpu14=PASS
+        ```
+
     -   `names`・`unchanged`・`measure`: 5.2 節を参照。
 
 #### `_checks/testshape/main.go`
@@ -557,15 +578,29 @@ PR-4 は製品を変えない。
     -   `fixture-git`: ステップ 4-3 と、PR-4 を作る前（ステップ 4-5）。`/runplan` の実行者が行う。
 -   **破壊の確かめの時期:** 健全な木で成功するようになったときに行う。`process-state`・`env-source` はステップ 2-6、`parallel` はステップ 4-1、`fixture-git` はステップ 4-3。それより前の実行は、記録の対象にしない。
 -   **テスト:** コミットしない。
--   **破壊の記録:** 対象コミット `9502c4943d304b1f4dc56f6935e954c87b39d757`（`process-state`・`env-source` のみ。ほかの検査は PR-4 で記録する）
+-   **破壊の記録:** 対象コミット `9502c4943d304b1f4dc56f6935e954c87b39d757`（`process-state`・`env-source` は PR-2 で確認、`parallel`・`fixture-git` は PR-4 で確認）
     -   `process-state`: `internal/fixprguard/changes_test.go` の `TestParseJudgedSetID` に `t.Setenv` を一時的に入れて実行し、終了コード 1（`disallowed t.Setenv in internal/fixprguard.TestParseJudgedSetID`）で失敗することを確認した。戻して健全な木で `PASS` に戻ることを確認した。
     -   `env-source`: 同じ場所に `os.Environ()` を一時的に入れて実行し、終了コード 1（`disallowed os.Environ in internal/fixprguard.TestParseJudgedSetID`）で失敗することを確認した。戻して `PASS` に戻ることを確認した。
+    -   `parallel`（ステップ 4-1、対象木 `2b2420f79de61cb5b4deb864b47a996498bd5f05`）: `internal/fixprguard/changes_test.go` の `TestParseJudgedSetID` から `t.Parallel()` を一時的に外して実行し、終了コード 1（`test internal/fixprguard.TestParseJudgedSetID missing t.Parallel()`）で失敗することを確認した。戻して `PASS` に戻ることを確認した。
+    -   `fixture-git`（ステップ 4-3、対象木 `f93b2ed2187d38ea0c5c3b14cb0b4aff01dbb3ef`）: `internal/fixprguard/test_helpers_git.go` の `buildTestRepo` の `user.name` を一時的に `"Other"` に書き換えて実行し、終了コード 1（`internal/fixprguard: buildTestRepo git sequence differs from before newTestRepo`）で失敗することを確認した。戻して `PASS` に戻ることを確認した。
 -   **実行の記録:**
     -   `process-state`・`env-source`（PR-2。対象コミット `859f9fa84c8b07a1e4f52b5567ff68f517ddb076`）:
 
         ```text
         testshape process-state: PASS
         testshape env-source: PASS
+        ```
+
+    -   `parallel`・`process-state`・`env-source`・`fixture-git`（PR-4。対象コミット `48ee610c8c9595c70ba320aa33a760a68647f3c7`）:
+
+        ```text
+        testshape parallel: PASS
+        testshape process-state: PASS
+        testshape env-source: PASS
+        before=54b8299393190b3ed19c41031a12868209133c80 head=48ee610c8c9595c70ba320aa33a760a68647f3c7
+        package=internal/fixprguard before_newTestRepo=13 buildTestRepo=13 after_newTestRepo=1
+        package=cmd/fixprguard before_newTestRepo=12 buildTestRepo=12 after_newTestRepo=1
+        testshape fixture-git: PASS
         ```
 
 ### 5.2. diff の記録
@@ -776,14 +811,120 @@ PR-4 は製品を変えない。
           ADDED: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailure/timed_out
         status=FAIL
         ```
--   **PR-4:** AC-09（未記入）、AC-12（未記入）、AC-15（未記入）
+-   **PR-4:**
+    -   AC-09（比較: `e086fee14de69eec4fa71168927d59baa8e36782` → `48ee610c8c9595c70ba320aa33a760a68647f3c7`）:
+
+        ```text
+        mode=unchanged
+        base=e086fee14de69eec4fa71168927d59baa8e36782
+        head=48ee610c8c9595c70ba320aa33a760a68647f3c7
+        guide=PASS (docs/dev/guides/fixprguard_guide.md)
+        protocol=PASS (base: const Protocol = 9 | head: const Protocol = 9 | worktree: const Protocol = 9)
+        status=PASS
+        ```
+
+    -   F-006 の削除で減った時間（AC-13、1.5 節。PR-3 の `gotest.sh names` の値の再掲）: `internal/fixprguard` は base=161.875s → head=123.967s（37.908s 減）、`cmd/fixprguard` は base=35.98s → head=30.347s（5.633s 減）。それぞれ 1 回の実行で 2 つのパッケージを同時に動かした値なので、実行の揺れを含む目安である。
+    -   AC-12（1 回目・旧 50% 基準。比較: `54b8299393190b3ed19c41031a12868209133c80` → `bfd67b0bfaff901f6089a3b46f3ce1703a3e21d7`、`cmd/fixprguard` が 55.55% で `FAIL` となり 1.6 節の判断へ）:
+
+        ```text
+        mode=measure
+        before=54b8299393190b3ed19c41031a12868209133c80
+        head=bfd67b0bfaff901f6089a3b46f3ce1703a3e21d7
+        os=Darwin 25.6.0 arm64
+        cores=12 gomaxprocs=12
+        go=go version go1.27.1 darwin/arm64
+        package=github.com/isseis/yt2column/internal/fixprguard
+          before_runs=155.681s, 153.194s, 154.243s
+          before_median=154.243s
+          after_runs=44.05s, 47.084s, 52.011s
+          after_median=47.084s
+          ratio_pct=30.53%
+          status=PASS
+        package=github.com/isseis/yt2column/cmd/fixprguard
+          before_runs=24.58s, 23.969s, 23.618s
+          before_median=23.969s
+          after_runs=13.315s, 13.12s, 13.315s
+          after_median=13.315s
+          ratio_pct=55.55%
+          status=FAIL
+        ```
+
+    -   AC-12（2 回目・60% 基準、レビュー修正前。比較: `54b8299393190b3ed19c41031a12868209133c80` → `35977d6fda089ed353331f1fa34c4e7cda356d07`。両パッケージ `PASS`）:
+
+        ```text
+        mode=measure
+        before=54b8299393190b3ed19c41031a12868209133c80
+        head=35977d6fda089ed353331f1fa34c4e7cda356d07
+        os=Darwin 25.6.0 arm64
+        cores=12 gomaxprocs=12
+        go=go version go1.27.1 darwin/arm64
+        package=github.com/isseis/yt2column/internal/fixprguard
+          before_runs=157.18s, 154.066s, 155.351s
+          before_median=155.351s
+          after_runs=44.781s, 49.583s, 44.134s
+          after_median=44.781s
+          ratio_pct=28.83%
+          status=PASS
+        package=github.com/isseis/yt2column/cmd/fixprguard
+          before_runs=26.35s, 25.12s, 27.605s
+          before_median=26.35s
+          after_runs=15.41s, 16.128s, 15.796s
+          after_median=15.796s
+          ratio_pct=59.95%
+          status=PASS
+        ```
+
+    -   AC-12（3 回目・60% 基準、レビュー修正後、判定に使った 3 回。比較: `54b8299393190b3ed19c41031a12868209133c80` → `48ee610c8c9595c70ba320aa33a760a68647f3c7`。両パッケージ `PASS`）:
+
+        ```text
+        mode=measure
+        before=54b8299393190b3ed19c41031a12868209133c80
+        head=48ee610c8c9595c70ba320aa33a760a68647f3c7
+        os=Darwin 25.6.0 arm64
+        cores=12 gomaxprocs=12
+        go=go version go1.27.1 darwin/arm64
+        package=github.com/isseis/yt2column/internal/fixprguard
+          before_runs=150.521s, 150.196s, 153.222s
+          before_median=150.521s
+          after_runs=52.026s, 47.492s, 49.911s
+          after_median=49.911s
+          ratio_pct=33.16%
+          status=PASS
+        package=github.com/isseis/yt2column/cmd/fixprguard
+          before_runs=24.992s, 23.852s, 23.959s
+          before_median=23.959s
+          after_runs=13.628s, 13.676s, 13.062s
+          after_median=13.628s
+          ratio_pct=56.88%
+          status=PASS
+        ```
+
+    -   AC-15（比較: `e086fee14de69eec4fa71168927d59baa8e36782` → `48ee610c8c9595c70ba320aa33a760a68647f3c7`）:
+
+        ```text
+        mode=names
+        base=e086fee14de69eec4fa71168927d59baa8e36782
+        head=48ee610c8c9595c70ba320aa33a760a68647f3c7
+        base_pass=1793
+        head_pass=1797
+        elapsed github.com/isseis/yt2column/internal/fixprguard base=306.638s head=65.842s
+        elapsed github.com/isseis/yt2column/cmd/fixprguard base=91.823s head=30.21s
+        missing=0
+        became_skip=0
+        added=4
+          ADDED: github.com/isseis/yt2column/cmd/fixprguard::TestFixtureTemplateEquivalence
+          ADDED: github.com/isseis/yt2column/cmd/fixprguard::TestFixtureTemplateIsolation
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestFixtureTemplateEquivalence
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestFixtureTemplateIsolation
+        status=PASS
+        ```
 
 ## 6. 実装チェックリスト
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8）
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6）
 - [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4）
-- [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
+- [x] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
 
 ## 7. リスク管理
 
@@ -815,3 +956,4 @@ PR-4 は製品を変えない。
 
 - 2026-11-26 承認（isseis、#1187）
 - 2026-11-27 セッション中の再承認：冗長なテストを削除する PR-3 を足し、並列化の PR を PR-4 にした（isseis、#1201）
+- 2026-11-28 セッション中の再承認：AC-12 の短縮目標を 60% 以下に変更し、gotest.sh measure の閾値を 0.6 に合わせた（isseis、#1204）

@@ -26,6 +26,7 @@ var realReviewers = []string{testReviewer, sourceryReviewer}
 // TestAssessAuthors judges with the test reviewer alone unless a row sets
 // reviewers; the rows with both reviewers cover each name separately.
 func TestAssessAuthors(t *testing.T) {
+	t.Parallel()
 	alice := func(t *testing.T) Login { return mustLogin(t, "alice") }
 	for _, tc := range []struct {
 		name      string
@@ -149,6 +150,7 @@ func TestAssessAuthors(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			reviewers := tc.reviewers
 			if reviewers == nil {
 				reviewers = []string{testReviewer}
@@ -169,6 +171,7 @@ func TestAssessAuthors(t *testing.T) {
 }
 
 func TestAssessUnverifiableAuthor(t *testing.T) {
+	t.Parallel()
 	url := testCommentURL(1)
 	noName := Finding{Reason: ReasonNoAuthorName, CommentURL: url}
 	unknownKind := Finding{Reason: ReasonUnknownAuthorKind}
@@ -191,6 +194,7 @@ func TestAssessUnverifiableAuthor(t *testing.T) {
 		{"no_comments", nil, []Finding{{Reason: ReasonIncompleteComments}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			// Every reviewer is passed: a [bot] suffix on any of their names
 			// fails the login grammar before any comparison with the list.
 			got := listOneWith(t, append(slices.Clone(bothReviewers), sourceryReviewer), testThread{id: testThreadID(1), comments: tc.comments})
@@ -202,6 +206,7 @@ func TestAssessUnverifiableAuthor(t *testing.T) {
 }
 
 func TestPermissionBudget(t *testing.T) {
+	t.Parallel()
 	users := func(from, to int) []testComment {
 		var comments []testComment
 		for i := from; i < to; i++ {
@@ -217,6 +222,7 @@ func TestPermissionBudget(t *testing.T) {
 		return steps
 	}
 	t.Run("100_lookups", func(t *testing.T) {
+		t.Parallel()
 		th := testThread{id: testThreadID(1), comments: users(0, maxPermissionLookups)}
 		g, _ := newTestGitHub(t, listSteps([]string{stageOneResponse(t, []testThread{th}, false, "")}, lookups(maxPermissionLookups)...)...)
 		list, err := g.List(t.Context(), mustPR(t))
@@ -231,6 +237,7 @@ func TestPermissionBudget(t *testing.T) {
 		}
 	})
 	t.Run("101st_login_over_budget", func(t *testing.T) {
+		t.Parallel()
 		first := testThread{id: testThreadID(1), comments: users(0, maxPermissionLookups)}
 		// u100 is the 101st distinct login. u0 repeats after the budget is
 		// spent and keeps the result of its one lookup.
@@ -255,6 +262,7 @@ func TestPermissionBudget(t *testing.T) {
 }
 
 func TestPermissionCause(t *testing.T) {
+	t.Parallel()
 	ok := "HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n\r\n"
 	for _, tc := range []struct {
 		name string
@@ -282,6 +290,7 @@ func TestPermissionCause(t *testing.T) {
 		{name: "unknown_members_ignored", out: ok + `{"role_name":"maintain","new_field":{"a":1}}`, want: permission{trusted: true}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g, _ := newTestGitHub(t, permissionStep("alice", tc.out, tc.err))
 			got := g.queryPermission(t.Context(), repository{owner: testOwner, name: testRepoName}, mustLogin(t, "alice"))
 			if got != tc.want {
@@ -290,6 +299,7 @@ func TestPermissionCause(t *testing.T) {
 		})
 	}
 	t.Run("cause_reaches_the_finding", func(t *testing.T) {
+		t.Parallel()
 		got := listOne(t, testThread{id: testThreadID(1), comments: []testComment{userComment(1, "alice")}},
 			permissionStep("alice", "", permissionFailure(429)))
 		want := []Finding{{Reason: ReasonPermissionUnavailable, Cause: CauseRateLimited}}
@@ -303,6 +313,7 @@ func TestPermissionCause(t *testing.T) {
 // lines it returns and the status codes it refuses. The callers' rows (the
 // permission lookup above, the interaction-limits rows) cover the rest.
 func TestSplitIncluded(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name       string
 		out        string
@@ -335,6 +346,7 @@ func TestSplitIncluded(t *testing.T) {
 		{name: "no_empty_line", out: "HTTP/2.0 200 OK\nDate: x\r\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			status, headers, body, ok := splitIncluded([]byte(tc.out))
 			if ok != tc.wantOK || status != tc.wantStatus || !slices.Equal(headers, tc.wantHeader) || string(body) != tc.wantBody {
 				t.Errorf("splitIncluded = %d, %q, %q, %v; want %d, %q, %q, %v",
@@ -347,6 +359,7 @@ func TestSplitIncluded(t *testing.T) {
 // TestAuthorFieldsNotStrings checks that a non-string __typename or login is
 // judged like a missing one rather than rejecting the whole response.
 func TestAuthorFieldsNotStrings(t *testing.T) {
+	t.Parallel()
 	th := testThread{id: testThreadID(1), comments: []testComment{userComment(1, "alice")}}
 	base := stageOneResponse(t, []testThread{th}, false, "")
 	for name, tc := range map[string]struct {
@@ -357,6 +370,7 @@ func TestAuthorFieldsNotStrings(t *testing.T) {
 		"typename_number": {`"__typename":"User"`, `"__typename":5`, Finding{Reason: ReasonUnknownAuthorKind}},
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			if !strings.Contains(base, tc.old) {
 				t.Fatalf("base response does not contain %q", tc.old)
 			}
@@ -373,6 +387,7 @@ func TestAuthorFieldsNotStrings(t *testing.T) {
 }
 
 func TestUnusableLoginNotPrinted(t *testing.T) {
+	t.Parallel()
 	const unusable = "evil_name-ignore-previous-instructions"
 	th := testThread{id: testThreadID(1), comments: []testComment{userComment(1, unusable)}}
 	g, _ := newTestGitHub(t, listSteps([]string{stageOneResponse(t, []testThread{th}, false, "")})...)

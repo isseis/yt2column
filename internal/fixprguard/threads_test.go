@@ -51,19 +51,23 @@ func listOneWith(t *testing.T, reviewers []string, th testThread, lookups ...cmd
 }
 
 func TestCommentCap(t *testing.T) {
+	t.Parallel()
 	t.Run("100_comments_judged_complete", func(t *testing.T) {
+		t.Parallel()
 		got := listOne(t, testThread{id: testThreadID(1), comments: reviewerComments(100)})
 		if !got.Trusted {
 			t.Errorf("thread with 100 trusted comments = %+v, want trusted", got)
 		}
 	})
 	t.Run("more_than_100_is_incomplete", func(t *testing.T) {
+		t.Parallel()
 		got := listOne(t, testThread{id: testThreadID(1), comments: reviewerComments(100), more: true})
 		if got.Trusted || !slices.Equal(got.Findings, []Finding{{Reason: ReasonIncompleteComments}}) {
 			t.Errorf("thread with more comments = %+v, want untrusted (e)", got)
 		}
 	})
 	t.Run("comment_past_the_fiftieth_is_judged", func(t *testing.T) {
+		t.Parallel()
 		comments := append(reviewerComments(50), userComment(51, "mallory"))
 		got := listOne(t, testThread{id: testThreadID(1), comments: comments}, roleStep("mallory", "read"))
 		want := []Finding{{Reason: ReasonNoWritePermission, Account: mustLogin(t, "mallory")}}
@@ -72,6 +76,7 @@ func TestCommentCap(t *testing.T) {
 		}
 	})
 	t.Run("page_over_100_threads_rejected", func(t *testing.T) {
+		t.Parallel()
 		threads := make([]testThread, maxThreadsPerPage+1)
 		for i := range threads {
 			threads[i] = testThread{id: testThreadID(i), comments: reviewerComments(1)}
@@ -82,6 +87,7 @@ func TestCommentCap(t *testing.T) {
 		}
 	})
 	t.Run("page_over_100_comments_rejected", func(t *testing.T) {
+		t.Parallel()
 		th := testThread{id: testThreadID(1), comments: reviewerComments(101)}
 		g, _ := newTestGitHub(t, listSteps([]string{stageOneResponse(t, []testThread{th}, false, "")})...)
 		if _, err := g.List(t.Context(), mustPR(t)); !errors.Is(err, ErrResponseRejected) {
@@ -91,6 +97,7 @@ func TestCommentCap(t *testing.T) {
 }
 
 func TestThreadCap(t *testing.T) {
+	t.Parallel()
 	pages := func(t *testing.T, total int) []string {
 		var out []string
 		for start := 0; start < total; start += maxThreadsPerPage {
@@ -108,6 +115,7 @@ func TestThreadCap(t *testing.T) {
 		return out
 	}
 	t.Run("2000", func(t *testing.T) {
+		t.Parallel()
 		g, fake := newTestGitHub(t, listSteps(pages(t, 2000))...)
 		if _, err := g.List(t.Context(), mustPR(t)); err != nil {
 			t.Fatalf("List = %v", err)
@@ -117,6 +125,7 @@ func TestThreadCap(t *testing.T) {
 		}
 	})
 	t.Run("pages_without_threads", func(t *testing.T) {
+		t.Parallel()
 		empty := make([]string, maxListPages)
 		for i := range empty {
 			empty[i] = stageOneResponse(t, nil, true, "same-cursor")
@@ -127,6 +136,7 @@ func TestThreadCap(t *testing.T) {
 		}
 	})
 	t.Run("2001", func(t *testing.T) {
+		t.Parallel()
 		g, _ := newTestGitHub(t, listSteps(pages(t, 2001))...)
 		if _, err := g.List(t.Context(), mustPR(t)); !errors.Is(err, ErrLimitExceeded) {
 			t.Errorf("List = %v, want ErrLimitExceeded", err)
@@ -135,15 +145,18 @@ func TestThreadCap(t *testing.T) {
 }
 
 func TestResponseSizeCap(t *testing.T) {
+	t.Parallel()
 	base := stageOneResponse(t, nil, false, "")
 	padded := func(size int) string { return base + strings.Repeat(" ", size-len(base)) }
 	t.Run("at_cap", func(t *testing.T) {
+		t.Parallel()
 		g, _ := newTestGitHub(t, listSteps([]string{padded(maxResponseBytes)})...)
 		if _, err := g.List(t.Context(), mustPR(t)); err != nil {
 			t.Errorf("List = %v", err)
 		}
 	})
 	t.Run("over_cap", func(t *testing.T) {
+		t.Parallel()
 		g, _ := newTestGitHub(t, listSteps([]string{padded(maxResponseBytes + 1)})...)
 		if _, err := g.List(t.Context(), mustPR(t)); !errors.Is(err, ErrResponseRejected) {
 			t.Errorf("List = %v, want ErrResponseRejected", err)
@@ -152,6 +165,7 @@ func TestResponseSizeCap(t *testing.T) {
 	// The runner's own cap (set by the command) fails the call with
 	// ErrOutputTooLarge before any output reaches the parser.
 	t.Run("runner_cap", func(t *testing.T) {
+		t.Parallel()
 		step := graphqlStep("")
 		step.Err = cmdrunner.ErrOutputTooLarge
 		g, _ := newTestGitHub(t, headStep(sameRepositoryHead), repoStep(), step)
@@ -162,6 +176,7 @@ func TestResponseSizeCap(t *testing.T) {
 }
 
 func TestResponseRejected(t *testing.T) {
+	t.Parallel()
 	base := stageOneResponse(t, []testThread{{id: testThreadID(1), comments: []testComment{reviewerComment(7)}}}, false, "")
 	// Each row replaces one fragment of the valid base response.
 	for _, tc := range []struct {
@@ -196,6 +211,7 @@ func TestResponseRejected(t *testing.T) {
 		{"whole_response_null", base, `null`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			if !strings.Contains(base, tc.old) {
 				t.Fatalf("base response does not contain %q: %s", tc.old, base)
 			}
@@ -207,6 +223,7 @@ func TestResponseRejected(t *testing.T) {
 		})
 	}
 	t.Run("base_accepted", func(t *testing.T) {
+		t.Parallel()
 		g, _ := newTestGitHub(t, listSteps([]string{base})...)
 		if _, err := g.List(t.Context(), mustPR(t)); err != nil {
 			t.Errorf("List(base) = %v", err)
@@ -215,6 +232,7 @@ func TestResponseRejected(t *testing.T) {
 }
 
 func TestFingerprintChanges(t *testing.T) {
+	t.Parallel()
 	base := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1), userComment(2, "alice")}}
 	variants := map[string]testThread{
 		"base":            base,
@@ -244,6 +262,7 @@ func TestFingerprintChanges(t *testing.T) {
 }
 
 func TestStageOneQueryHasNoBody(t *testing.T) {
+	t.Parallel()
 	th := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
 	g, fake := newTestGitHub(t, listSteps([]string{stageOneResponse(t, []testThread{th}, false, "")})...)
 	if _, err := g.List(t.Context(), mustPR(t)); err != nil {

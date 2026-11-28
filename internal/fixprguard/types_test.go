@@ -15,8 +15,10 @@ import (
 const testFP = Fingerprint("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
 
 func TestParseLogin(t *testing.T) {
+	t.Parallel()
 	for _, valid := range []string{"coderabbitai", "a", "isseis", "a-b", "A1", "0x", strings.Repeat("a", 39)} {
 		t.Run("valid/"+valid, func(t *testing.T) {
+			t.Parallel()
 			login, err := ParseLogin(valid)
 			if err != nil {
 				t.Fatalf("ParseLogin(%q) = %v", valid, err)
@@ -31,6 +33,7 @@ func TestParseLogin(t *testing.T) {
 		"coderabbitai[bot]", "\u00e9", "a\n", "../../x",
 	} {
 		t.Run("invalid/"+invalid, func(t *testing.T) {
+			t.Parallel()
 			if _, err := ParseLogin(invalid); !errors.Is(err, ErrInvalidInput) {
 				t.Errorf("ParseLogin(%q) = %v, want ErrInvalidInput", invalid, err)
 			}
@@ -39,6 +42,7 @@ func TestParseLogin(t *testing.T) {
 }
 
 func TestParseReviewers(t *testing.T) {
+	t.Parallel()
 	many := make([]string, 100)
 	for i := range many {
 		many[i] = "bot-" + strconv.Itoa(i)
@@ -55,6 +59,7 @@ func TestParseReviewers(t *testing.T) {
 		{"many", many},
 	} {
 		t.Run("valid/"+tc.name, func(t *testing.T) {
+			t.Parallel()
 			r, err := ParseReviewers(tc.names)
 			if err != nil {
 				t.Fatalf("ParseReviewers = %v", err)
@@ -86,6 +91,7 @@ func TestParseReviewers(t *testing.T) {
 		{"duplicate_not_adjacent", []string{"dup-name", "coderabbitai", "dup-name"}, "dup-name"},
 	} {
 		t.Run("invalid/"+tc.name, func(t *testing.T) {
+			t.Parallel()
 			r, err := ParseReviewers(tc.names)
 			if !errors.Is(err, ErrInvalidInput) {
 				t.Fatalf("ParseReviewers = %v, want ErrInvalidInput", err)
@@ -102,8 +108,10 @@ func TestParseReviewers(t *testing.T) {
 }
 
 func TestParsePRNumber(t *testing.T) {
+	t.Parallel()
 	for _, valid := range []string{"1", "42", "999999999"} {
 		t.Run("valid/"+valid, func(t *testing.T) {
+			t.Parallel()
 			pr, err := ParsePRNumber(valid)
 			if err != nil {
 				t.Fatalf("ParsePRNumber(%q) = %v", valid, err)
@@ -118,6 +126,7 @@ func TestParsePRNumber(t *testing.T) {
 		"https://github.com/isseis/yt2column/pull/42", "#42", "\u0664\u0662",
 	} {
 		t.Run("invalid/"+invalid, func(t *testing.T) {
+			t.Parallel()
 			if _, err := ParsePRNumber(invalid); !errors.Is(err, ErrInvalidInput) {
 				t.Errorf("ParsePRNumber(%q) = %v, want ErrInvalidInput", invalid, err)
 			}
@@ -126,6 +135,7 @@ func TestParsePRNumber(t *testing.T) {
 }
 
 func TestIDGrammar(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		id   string
 		want bool
@@ -161,6 +171,7 @@ func TestIDGrammar(t *testing.T) {
 }
 
 func TestParseAccept(t *testing.T) {
+	t.Parallel()
 	got, err := ParseAccept("PRRT_abc=" + string(testFP))
 	if err != nil {
 		t.Fatalf("ParseAccept = %v", err)
@@ -185,12 +196,14 @@ func TestParseAccept(t *testing.T) {
 		}
 	}
 	t.Run("named_twice", func(t *testing.T) {
+		t.Parallel()
 		a := Accept{ThreadID: "PRRT_abc", Fingerprint: testFP}
 		if _, err := checkAccepts([]Accept{a, a}); !errors.Is(err, ErrInvalidInput) {
 			t.Errorf("checkAccepts(duplicate) = %v, want ErrInvalidInput", err)
 		}
 	})
 	t.Run("unparsed_pair", func(t *testing.T) {
+		t.Parallel()
 		if _, err := checkAccepts([]Accept{{ThreadID: "../x", Fingerprint: testFP}}); !errors.Is(err, ErrInvalidInput) {
 			t.Errorf("checkAccepts(bad ID) = %v, want ErrInvalidInput", err)
 		}
@@ -198,12 +211,14 @@ func TestParseAccept(t *testing.T) {
 }
 
 func TestResolveRepository(t *testing.T) {
+	t.Parallel()
 	step := func(out string) cmdrunnertestutil.Step {
 		s := repoStep()
 		s.Out = out
 		return s
 	}
 	t.Run("valid", func(t *testing.T) {
+		t.Parallel()
 		g, _ := newTestGitHub(t, step(`{"nameWithOwner":"isseis/yt2column.go","visibility":"PUBLIC"}`))
 		repo, err := g.resolveRepository(t.Context())
 		if err != nil {
@@ -226,6 +241,7 @@ func TestResolveRepository(t *testing.T) {
 		"not_json":         `isseis/yt2column`,
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			g, _ := newTestGitHub(t, step(out))
 			if _, err := g.resolveRepository(t.Context()); !errors.Is(err, ErrResponseRejected) {
 				t.Errorf("resolveRepository(%s) = %v, want ErrResponseRejected", out, err)
@@ -235,6 +251,7 @@ func TestResolveRepository(t *testing.T) {
 }
 
 func TestFindingJSON(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name    string
 		finding Finding
@@ -253,6 +270,7 @@ func TestFindingJSON(t *testing.T) {
 		{"failed", Finding{Reason: ReasonPermissionUnavailable, Cause: CauseFailed}, `{"reason":"permission-unavailable","cause":"failed"}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := json.Marshal(tc.finding)
 			if err != nil {
 				t.Fatalf("Marshal = %v", err)

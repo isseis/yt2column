@@ -36,6 +36,7 @@ func withBody(th testThread, body string) testThread {
 }
 
 func TestNewGitHub(t *testing.T) {
+	t.Parallel()
 	fake := cmdrunnertestutil.New(t)
 	if _, err := NewGitHub(fake, Reviewers{}); !errors.Is(err, ErrInvalidInput) {
 		t.Errorf("NewGitHub(zero reviewers) = %v, want ErrInvalidInput", err)
@@ -49,6 +50,7 @@ func TestNewGitHub(t *testing.T) {
 // answers Head but refuses every call that judges threads before running gh;
 // the fake has no step for them.
 func TestGitHubWithoutReviewerJudgesNothing(t *testing.T) {
+	t.Parallel()
 	if _, err := NewGitHubWithoutReviewer(nil); !errors.Is(err, ErrInvalidInput) {
 		t.Errorf("NewGitHubWithoutReviewer(nil) = %v, want ErrInvalidInput", err)
 	}
@@ -82,6 +84,7 @@ func TestGitHubWithoutReviewerJudgesNothing(t *testing.T) {
 }
 
 func TestCurrentPR(t *testing.T) {
+	t.Parallel()
 	step := func(out string, err error) cmdrunnertestutil.Step {
 		return cmdrunnertestutil.Step{Name: "gh", Args: []string{"pr", "view", "--json", "number"}, Out: out, Err: err}
 	}
@@ -101,6 +104,7 @@ func TestCurrentPR(t *testing.T) {
 		{name: "gh_failure", err: &cmdrunner.ExitError{Code: ghExitFailure}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g, _ := newTestGitHub(t, step(tc.out, tc.err))
 			if _, err := g.CurrentPR(t.Context()); !errors.Is(err, ErrResponseRejected) {
 				t.Errorf("CurrentPR = %v, want ErrResponseRejected", err)
@@ -110,6 +114,7 @@ func TestCurrentPR(t *testing.T) {
 }
 
 func TestHeadRequiresSameRepository(t *testing.T) {
+	t.Parallel()
 	const repo = `"headRepository":{"id":"R_1","name":"yt2column"}`
 	for _, tc := range []struct {
 		name string
@@ -129,6 +134,7 @@ func TestHeadRequiresSameRepository(t *testing.T) {
 		{name: "not_json", out: `false`, want: ErrResponseRejected},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			step := headStep(tc.out)
 			step.Err = tc.err
 			g, _ := newTestGitHub(t, step)
@@ -142,6 +148,7 @@ func TestHeadRequiresSameRepository(t *testing.T) {
 		})
 	}
 	t.Run("zero_pr_number", func(t *testing.T) {
+		t.Parallel()
 		g, _ := newTestGitHub(t)
 		if _, err := g.Head(t.Context(), PRNumber{}); !errors.Is(err, ErrInvalidInput) {
 			t.Errorf("Head(zero) = %v, want ErrInvalidInput", err)
@@ -150,21 +157,25 @@ func TestHeadRequiresSameRepository(t *testing.T) {
 }
 
 func TestBeginAndListCheckForkFirst(t *testing.T) {
+	t.Parallel()
 	cross := `{"isCrossRepository":true,"headRepository":{"name":"fork"}}`
 	// The fake holds only the head step, so any later call fails the test.
 	t.Run("begin", func(t *testing.T) {
+		t.Parallel()
 		g, _ := newTestGitHub(t, headStep(cross))
 		if _, err := g.Begin(t.Context(), mustPR(t), nil); !errors.Is(err, ErrCrossRepository) {
 			t.Errorf("Begin = %v, want ErrCrossRepository", err)
 		}
 	})
 	t.Run("list", func(t *testing.T) {
+		t.Parallel()
 		g, _ := newTestGitHub(t, headStep(cross))
 		if _, err := g.List(t.Context(), mustPR(t)); !errors.Is(err, ErrCrossRepository) {
 			t.Errorf("List = %v, want ErrCrossRepository", err)
 		}
 	})
 	t.Run("begin_rejects_accept_before_any_call", func(t *testing.T) {
+		t.Parallel()
 		g, _ := newTestGitHub(t)
 		if _, err := g.Begin(t.Context(), mustPR(t), []Accept{{ThreadID: "PRRT_x", Fingerprint: "short"}}); !errors.Is(err, ErrInvalidInput) {
 			t.Errorf("Begin = %v, want ErrInvalidInput", err)
@@ -173,6 +184,7 @@ func TestBeginAndListCheckForkFirst(t *testing.T) {
 }
 
 func TestBeginAssessesEveryCall(t *testing.T) {
+	t.Parallel()
 	th := testThread{id: testThreadID(1), comments: []testComment{userComment(1, "alice")}}
 	stageOne := stageOneResponse(t, []testThread{th}, false, "")
 	steps := slices.Concat(
@@ -197,6 +209,7 @@ func TestBeginAssessesEveryCall(t *testing.T) {
 }
 
 func TestBeginNeverFetchesUntrustedBody(t *testing.T) {
+	t.Parallel()
 	trusted := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1), userComment(2, "alice")}}
 	untrusted := testThread{id: testThreadID(2), comments: []testComment{reviewerComment(3), userComment(4, "mallory")}}
 	resolved := testThread{id: testThreadID(3), resolved: true, comments: []testComment{userComment(5, "eve")}}
@@ -204,6 +217,7 @@ func TestBeginNeverFetchesUntrustedBody(t *testing.T) {
 	lookups := []cmdrunnertestutil.Step{roleStep("alice", "admin"), roleStep("mallory", "read")}
 
 	t.Run("only_processed_threads_fetched", func(t *testing.T) {
+		t.Parallel()
 		g, fake := newTestGitHub(t, beginSteps(stageOne, lookups, stageTwoResponse(t, withBody(trusted, "please fix")))...)
 		round, err := g.Begin(t.Context(), mustPR(t), nil)
 		if err != nil {
@@ -221,6 +235,7 @@ func TestBeginNeverFetchesUntrustedBody(t *testing.T) {
 		}
 	})
 	t.Run("no_fetch_when_nothing_is_trusted", func(t *testing.T) {
+		t.Parallel()
 		stageOne := stageOneResponse(t, []testThread{untrusted}, false, "")
 		g, _ := newTestGitHub(t, beginSteps(stageOne, []cmdrunnertestutil.Step{roleStep("mallory", "read")}, "")...)
 		round, err := g.Begin(t.Context(), mustPR(t), nil)
@@ -244,6 +259,7 @@ func TestBeginNeverFetchesUntrustedBody(t *testing.T) {
 }
 
 func TestBeginStageTwoFingerprintMismatch(t *testing.T) {
+	t.Parallel()
 	th := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
 	stageOne := stageOneResponse(t, []testThread{th}, false, "")
 	for name, later := range map[string]testThread{
@@ -252,6 +268,7 @@ func TestBeginStageTwoFingerprintMismatch(t *testing.T) {
 		"resolved":       {id: th.id, resolved: true, comments: th.comments},
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			g, _ := newTestGitHub(t, beginSteps(stageOne, nil, stageTwoResponse(t, withBody(later, "injected")))...)
 			round, err := g.Begin(t.Context(), mustPR(t), nil)
 			if err != nil {
@@ -270,6 +287,7 @@ func TestBeginStageTwoFingerprintMismatch(t *testing.T) {
 		"no_body":    strings.Replace(stageTwoResponse(t, th), `"body":"",`, ``, 1),
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			g, _ := newTestGitHub(t, beginSteps(stageOne, nil, stageTwo)...)
 			if _, err := g.Begin(t.Context(), mustPR(t), nil); !errors.Is(err, ErrResponseRejected) {
 				t.Errorf("Begin = %v, want ErrResponseRejected", err)
@@ -279,6 +297,7 @@ func TestBeginStageTwoFingerprintMismatch(t *testing.T) {
 }
 
 func TestBeginReportsAllReasons(t *testing.T) {
+	t.Parallel()
 	th := testThread{id: testThreadID(1), more: true, comments: []testComment{
 		userComment(1, "alice"),
 		botComment(2, "dependabot"),
@@ -309,6 +328,7 @@ func TestBeginReportsAllReasons(t *testing.T) {
 }
 
 func TestBeginAcceptsNamedThread(t *testing.T) {
+	t.Parallel()
 	th := testThread{id: testThreadID(2), comments: []testComment{userComment(1, "mallory")}}
 	accept := []Accept{
 		{ThreadID: th.id, Fingerprint: testFingerprint(t, th)},
@@ -335,6 +355,7 @@ func TestBeginAcceptsNamedThread(t *testing.T) {
 }
 
 func TestBeginAcceptChangedFingerprint(t *testing.T) {
+	t.Parallel()
 	seen := testThread{id: testThreadID(2), comments: []testComment{userComment(1, "mallory"), userComment(2, "mallory")}}
 	accept := []Accept{{ThreadID: seen.id, Fingerprint: testFingerprint(t, seen)}}
 	for name, now := range map[string]testThread{
@@ -343,6 +364,7 @@ func TestBeginAcceptChangedFingerprint(t *testing.T) {
 		"comment_deleted": {id: seen.id, comments: seen.comments[:1]},
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			// No stage-two step: the changed thread's body must not be fetched.
 			g, _ := newTestGitHub(t, beginSteps(stageOneResponse(t, []testThread{now}, false, ""),
 				[]cmdrunnertestutil.Step{roleStep("mallory", "read")}, "")...)
@@ -362,6 +384,7 @@ func TestBeginAcceptChangedFingerprint(t *testing.T) {
 }
 
 func TestBeginRefusesEmptyNamedThread(t *testing.T) {
+	t.Parallel()
 	empty := testThread{id: testThreadID(1)}
 	accept := []Accept{{ThreadID: empty.id, Fingerprint: testFingerprint(t, empty)}}
 	// No stage-two step: a thread without comments is never selected.
@@ -379,6 +402,7 @@ func TestBeginRefusesEmptyNamedThread(t *testing.T) {
 // bot is "Bot"; a named other bot's thread and a thread opened by a user who
 // shares a reviewer's name (trusted by write permission) are "User".
 func TestBeginAuthorType(t *testing.T) {
+	t.Parallel()
 	first := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
 	second := testThread{id: testThreadID(2), comments: []testComment{botComment(2, testSecondReviewer)}}
 	otherBot := testThread{id: testThreadID(3), comments: []testComment{botComment(3, "dependabot")}}
@@ -427,6 +451,7 @@ func (r *deadlineRunner) RunInput(ctx context.Context, stdin []byte, name string
 }
 
 func TestGitHubCallsHaveTimeout(t *testing.T) {
+	t.Parallel()
 	runner := &deadlineRunner{Fake: cmdrunnertestutil.New(t, headStep(sameRepositoryHead))}
 	g, err := NewGitHub(runner, mustReviewers(t, testReviewer))
 	if err != nil {
@@ -441,6 +466,7 @@ func TestGitHubCallsHaveTimeout(t *testing.T) {
 }
 
 func TestListOmitsBodies(t *testing.T) {
+	t.Parallel()
 	trusted := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
 	untrusted := testThread{id: testThreadID(2), comments: []testComment{userComment(2, "mallory")}}
 	resolved := testThread{id: testThreadID(3), resolved: true, comments: []testComment{reviewerComment(3)}}
@@ -482,6 +508,7 @@ func TestListOmitsBodies(t *testing.T) {
 }
 
 func TestThreadPathsRequiresTrustedOrNamed(t *testing.T) {
+	t.Parallel()
 	trusted := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
 	untrusted := testThread{id: testThreadID(2), comments: []testComment{userComment(2, "mallory")}}
 	resolved := testThread{id: testThreadID(3), resolved: true, comments: []testComment{reviewerComment(3)}}
@@ -490,11 +517,15 @@ func TestThreadPathsRequiresTrustedOrNamed(t *testing.T) {
 	pathSteps := func(lookups ...cmdrunnertestutil.Step) []cmdrunnertestutil.Step {
 		return append([]cmdrunnertestutil.Step{repoStep(), graphqlStep(stageOne)}, lookups...)
 	}
-	accept := func(th testThread) Accept { return Accept{ThreadID: th.id, Fingerprint: testFingerprint(t, th)} }
+	accept := func(t *testing.T, th testThread) Accept {
+		t.Helper()
+		return Accept{ThreadID: th.id, Fingerprint: testFingerprint(t, th)}
+	}
 
 	t.Run("trusted_and_named", func(t *testing.T) {
+		t.Parallel()
 		g, _ := newTestGitHub(t, pathSteps(roleStep("mallory", "read"))...)
-		paths, err := g.ThreadPaths(t.Context(), mustPR(t), []Accept{accept(trusted), accept(untrusted)})
+		paths, err := g.ThreadPaths(t.Context(), mustPR(t), []Accept{accept(t, trusted), accept(t, untrusted)})
 		if err != nil {
 			t.Fatalf("ThreadPaths = %v", err)
 		}
@@ -509,10 +540,11 @@ func TestThreadPathsRequiresTrustedOrNamed(t *testing.T) {
 	for name, given := range map[string]Accept{
 		"fingerprint_differs": {ThreadID: trusted.id, Fingerprint: testFP},
 		"unknown_thread":      {ThreadID: "PRRT_gone", Fingerprint: testFP},
-		"resolved_thread":     accept(resolved),
-		"empty_thread":        accept(empty),
+		"resolved_thread":     accept(t, resolved),
+		"empty_thread":        accept(t, empty),
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			g, _ := newTestGitHub(t, pathSteps()...)
 			if _, err := g.ThreadPaths(t.Context(), mustPR(t), []Accept{given}); !errors.Is(err, ErrThreadChanged) {
 				t.Errorf("ThreadPaths = %v, want ErrThreadChanged", err)
@@ -522,9 +554,10 @@ func TestThreadPathsRequiresTrustedOrNamed(t *testing.T) {
 	// The second reviewer's thread is trusted, not named, so inspect applies
 	// the trusted-thread scope rule to it.
 	t.Run("second_reviewer_not_named", func(t *testing.T) {
+		t.Parallel()
 		second := testThread{id: testThreadID(5), comments: []testComment{botComment(5, testSecondReviewer)}}
 		g, _ := newTestGitHubWith(t, bothReviewers, repoStep(), graphqlStep(stageOneResponse(t, []testThread{second}, false, "")))
-		paths, err := g.ThreadPaths(t.Context(), mustPR(t), []Accept{accept(second)})
+		paths, err := g.ThreadPaths(t.Context(), mustPR(t), []Accept{accept(t, second)})
 		if err != nil {
 			t.Fatalf("ThreadPaths = %v", err)
 		}
@@ -533,8 +566,9 @@ func TestThreadPathsRequiresTrustedOrNamed(t *testing.T) {
 		}
 	})
 	t.Run("named_twice", func(t *testing.T) {
+		t.Parallel()
 		g, _ := newTestGitHub(t)
-		if _, err := g.ThreadPaths(t.Context(), mustPR(t), []Accept{accept(trusted), accept(trusted)}); !errors.Is(err, ErrInvalidInput) {
+		if _, err := g.ThreadPaths(t.Context(), mustPR(t), []Accept{accept(t, trusted), accept(t, trusted)}); !errors.Is(err, ErrInvalidInput) {
 			t.Errorf("ThreadPaths = %v, want ErrInvalidInput", err)
 		}
 	})
@@ -544,6 +578,7 @@ func TestThreadPathsRequiresTrustedOrNamed(t *testing.T) {
 // the contract: no standard output or error of the failed command (secret) and
 // no argument (the --input and --json flags) may reach it.
 func TestErrorsOmitCommandDetails(t *testing.T) {
+	t.Parallel()
 	const secret = "SECRET-DETAIL"
 	failure := &cmdrunner.ExitError{Code: 1, Stdout: []byte(secret), Stderr: []byte(secret)}
 	fail := func(step cmdrunnertestutil.Step) cmdrunnertestutil.Step {
@@ -558,6 +593,7 @@ func TestErrorsOmitCommandDetails(t *testing.T) {
 		"stage_one": {headStep(sameRepositoryHead), repoStep(), fail(graphqlStep(""))},
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			g, _ := newTestGitHub(t, steps...)
 			_, err := g.Begin(t.Context(), mustPR(t), nil)
 			if !errors.Is(err, ErrResponseRejected) {
@@ -569,6 +605,7 @@ func TestErrorsOmitCommandDetails(t *testing.T) {
 		})
 	}
 	t.Run("permission_lookup", func(t *testing.T) {
+		t.Parallel()
 		g, _ := newTestGitHub(t, beginSteps(stageOne, []cmdrunnertestutil.Step{fail(permissionStep("alice", "", nil))}, "")...)
 		round, err := g.Begin(t.Context(), mustPR(t), nil)
 		if err != nil {

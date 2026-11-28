@@ -10,5 +10,8 @@ import (
 var isolation Isolation
 
 func TestMain(m *testing.M) {
-	os.Exit(Run(m, func(i Isolation) { isolation = i }))
+	os.Exit(Run(m, func(i Isolation) error {
+		isolation = i
+		return nil
+	}))
 }

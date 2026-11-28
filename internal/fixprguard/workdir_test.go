@@ -9,8 +9,10 @@ import (
 )
 
 func TestNewWorktreeDir(t *testing.T) {
+	t.Parallel()
 	for _, path := range []string{"/repo", "/tmp/work/repo"} {
 		t.Run("accept/"+path, func(t *testing.T) {
+			t.Parallel()
 			d, err := NewWorktreeDir(path)
 			if err != nil {
 				t.Fatalf("NewWorktreeDir(%q) = %v, want nil", path, err)
@@ -38,6 +40,7 @@ func TestNewWorktreeDir(t *testing.T) {
 		{"dot_elem", "/a/./" + marker},
 	} {
 		t.Run("reject/"+tc.name, func(t *testing.T) {
+			t.Parallel()
 			d, err := NewWorktreeDir(tc.path)
 			if !errors.Is(err, ErrInvalidInput) {
 				t.Fatalf("NewWorktreeDir(%q) err = %v, want ErrInvalidInput", tc.path, err)
@@ -55,6 +58,7 @@ func TestNewWorktreeDir(t *testing.T) {
 }
 
 func TestWorktreeDirOperations(t *testing.T) {
+	t.Parallel()
 	absDir, err := NewWorktreeDir("/tmp/work")
 	if err != nil {
 		t.Fatalf("NewWorktreeDir: %v", err)
@@ -82,6 +86,7 @@ func TestWorktreeDirOperations(t *testing.T) {
 		},
 	} {
 		t.Run(mode.name, func(t *testing.T) {
+			t.Parallel()
 			for _, name := range joinNames {
 				if got, want := mode.dir.joinName(name), mode.prefix+name; got != want {
 					t.Errorf("joinName(%q) = %q, want %q", name, got, want)
