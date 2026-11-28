@@ -59,13 +59,13 @@
 
 ### フェーズ 1: 線形時間テスト、レシピ、ガード、記述（設計書 3 章、AC-01〜AC-08）
 
-- [ ] **ステップ 1-1**: `internal/maketestutil` の定数と関数
+- [x] **ステップ 1-1**: `internal/maketestutil` の定数と関数
     - 変えるファイル: `internal/maketestutil/make.go`・`internal/maketestutil/make_test.go`・`docs/dev/conventions/package_reference.md`
     - 設計書 3.2 節・3.3 節のとおり、環境変数の名前と値の定数、環境変数の値を判定する純粋な関数、`-run` の値を名前の並びとして読む関数、それぞれのセンチネルエラー、その表のテストを足す
     - `docs/dev/conventions/package_reference.md` の `internal/maketestutil` の行を、足した名前に合わせて同じコミットで直す
     - 壊し方の確認（どれも確認の後に元に戻す）: `-run` の関数が `)$` のない値を受け付けるように変える。環境変数の関数が `0` を判定を求めない値として受け付けるように変える。どちらでも `go test -tags test -count=1 ./internal/maketestutil` が失敗することを確かめる。結果をコミットメッセージに書く
     - 完了の条件: `go test -tags test -count=1 ./internal/maketestutil` が通る
-- [ ] **ステップ 1-2**: 線形時間テストの切り替え
+- [x] **ステップ 1-2**: 線形時間テストの切り替え
     - 変えるファイル: `internal/publisher/display_render_test.go`。追加するファイル: `internal/publisher/display_render_race_test.go`・`internal/publisher/display_render_norace_test.go`
     - 設計書 3.2 節のとおりに書く。環境変数の名前と値は、ステップ 1-1 の定数を参照する
     - 2 乗の壊し方: `neutralizeAts`（`internal/publisher/mention.go:78`）の、各 `@` の単位を判定する箇所（`ats[nextAt] == i` の分岐）に、次の処理を足す。
@@ -81,7 +81,7 @@
         - `NeutralizedDisplayMarkdown`（`internal/publisher/display_render.go:28`）が、U+200B を挿入しても `Neutralized` を偽にして返すように壊し、`go test -tags test -race -count=1 -run '^TestNeutralizedDisplayMarkdownLinearTime$' ./internal/publisher` が契約の確認で失敗すること（AC-02）
     - 壊し方とその結果をコミットメッセージに書く
     - 完了の条件: 両方のビルドで、環境変数なしと `1` のどちらでもテストが通り、コミットメッセージに壊し方の記録がある
-- [ ] **ステップ 1-3**: レシピとガード
+- [x] **ステップ 1-3**: レシピとガード
     - 変えるファイル: `Makefile`（レシピ）・`internal/transcript/makefile_test.go`。追加するファイル: `internal/publisher/makefile_test.go`（ガードの名前は `TestMakeTestParseNoraceRunsLinearTime`）
     - 設計書 1 章と 3.3 節・3.4 節のとおりに書く。古くなるコメント（`internal/transcript/makefile_test.go:18-21`・`:36-41`、`internal/transcript/copied_format_test.go:1029-1032`）も直す
     - レシピとガードは 1 つのコミットで変える
@@ -97,7 +97,7 @@
         - `TestParseCopiedLargeInputs` の名前を、宣言と参照（`largeInputTestName` の関数値）のすべてで変え、レシピはそのままにする
     - 壊し方とその結果をコミットメッセージに書く
     - 完了の条件: ガードが通り、コミットメッセージに壊し方の記録がある
-- [ ] **ステップ 1-4**: CI の手順の名前と記述
+- [x] **ステップ 1-4**: CI の手順の名前と記述
     - 変えるファイル: `.github/workflows/ci.yml`・`CLAUDE.md`・`Makefile` のコメント
     - 設計書 3.4 節のとおりに書く。ADR-0038 は 3 文書の PR で更新済みである。決定の食い違いの項（#1206 の実装で解消する）を消す。`git grep -nE 'issues/1206([^0-9]|$)' origin/main -- docs/dev/adr/` でほかに食い違いの項がないかも確かめる（`docs/dev/conventions/adr.md`「Discrepancy statements」）。実装が設計とずれたときはそれも直す
     - `make fmt`・`make test`・`make lint` を通す（AC-08）
@@ -143,7 +143,7 @@
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] フェーズ 1（ステップ 1-1〜1-4）
+- [x] フェーズ 1（ステップ 1-1〜1-4）
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（最終の PR のため）
