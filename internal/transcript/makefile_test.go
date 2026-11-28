@@ -97,9 +97,12 @@ func TestMakeTestParseNorace(t *testing.T) {
 }
 
 // TestMakeTestRunsParseNorace checks that `make test` ends by running
-// test-parse-norace. The stub GOTEST keeps only its last call, and the
-// command-line GOTEST reaches the sub-make, so that last call's arguments are
-// those of test-parse-norace exactly when `make test` runs it last.
+// test-parse-norace: its last GOTEST call has the target's arguments and
+// environment. The stub GOTEST keeps only its last call, and the command-line
+// GOTEST reaches the sub-make, so that last call's arguments and environment
+// are those of test-parse-norace exactly when `make test` runs it last. A
+// recipe that ends with an inline go test command of the same arguments but a
+// different environment fails the environment comparison.
 func TestMakeTestRunsParseNorace(t *testing.T) {
 	record := []string{maketestutil.TestTimingEnv}
 	_, want := maketestutil.RunTarget(t, repositoryRoot, parseNoraceTarget, nil, record, nil)

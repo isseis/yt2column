@@ -234,8 +234,8 @@ func TestNeutralizedDisplayMarkdownKeptAts(t *testing.T) {
 // times as long (a linear pass takes about four times, a pass that searches
 // back from each '@' or each URL start about sixteen). The minimum of several
 // runs keeps a slow run from deciding, and no absolute limit is set, because a
-// machine's speed differs. The race build and the full runs, where other tests
-// run alongside, only check the success and the contract.
+// machine's speed differs. The race build and full runs without
+// YT2COLUMN_TEST_TIMING only check the success and the contract.
 func TestNeutralizedDisplayMarkdownLinearTime(t *testing.T) {
 	timing, err := maketestutil.TimingEnabled(os.LookupEnv)
 	if err != nil {
