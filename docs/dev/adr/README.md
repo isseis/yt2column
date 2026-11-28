@@ -43,7 +43,7 @@
 | [ADR-0035](0035-language-policy.md) | 文書の言語は読み手と承認者で決め、README だけを日英の 2 言語で同期し、PR のタイトルは日本語、squash の件名は英語にする | `有効` |
 | [ADR-0036](0036-task-document-status-records.md) | タスク文書の Comments には今の状態の理由だけを書き、状態の遷移は変更履歴に、編集上の訂正は PR の説明とコミットに記録する | `有効` |
 | [ADR-0037](0037-test-deletion-coverage.md) | テストを削除したことは、削除だけのコミットの前後のカバレッジの比較で確かめ、その出力をコミットメッセージと PR の説明に残す | `有効` |
-| [ADR-0038](0038-deadcode-and-race-free-timing.md) | make deadcode はモジュール全体とテストから届かない関数を報告して失敗し、パースの時間の期限は -race なしのビルドだけで確かめる | `有効` |
+| [ADR-0038](0038-deadcode-and-race-free-timing.md) | make deadcode はモジュール全体とテストから届かない関数を報告して失敗し、テストの時間の判定は -race なしのビルドだけで行う | `有効` |
 | [ADR-0039](0039-adr-writing-criteria.md) | ADR の背景には決定が答える問題と前提だけを、決定には守るべき規則を理由と正本の場所とともに書き、決定を変えない直しは編集上の訂正として認める | `有効` |
 | [ADR-0040](0040-simple-task-documents.md) | 小さな変更のタスクは、人の判断で 3 文書を簡易な内容にして 1 本の PR で作れるようにし、機械的な判定は設けない | `有効` |
 | [ADR-0041](0041-openai-api.md) | OpenAI は Responses API を応答の保存なしで呼び、出力上限は実測で決める | `有効` |
