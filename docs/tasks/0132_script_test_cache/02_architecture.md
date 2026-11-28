@@ -24,9 +24,10 @@
 1. `internal/ciskip/workflow_pin_test.go` に `doc-guard` の `-count=1` を固定するガードテストを追加する。
    - 理由：`internal/ciskip/workflow_pin_test.go:67,575`（コミット `5bba819a`）は既に `.github/workflows/ci.yml` を解析して `doc-guard` ジョブと `steps[].runBody` を読み取っており、既存パーサを再利用して将来の `-count=1` 脱落を自動検出できるため。
    - ADR：なし（既存のワークフロー検証テストに 1 項目を追加するのみで、他タスクやコンポーネント境界を縛る主要決定ではない）。
-2. キャッシュキー登録の検証として、実装時の壊し確認に加え、`cmd/go` が内部で使うテストフラグ `-test.testlogfile` を用いた軽量な自動テストを置く。
-   - 理由：Go のテストキャッシュはテストプロセスが `os.Open` したパスを `-test.testlogfile` に `open <path>` 行として記録する（コミット `5bba819a` の `go test -tags test -c` で実行確認済み）。自テストバイナリ（`os.Args[0]`）を `-test.testlogfile` 付きで再実行すれば再ビルド不要で高速に検証でき、将来 `os.ReadFile` が誤って削除された場合も `make test` で検出できるため。
-   - 受け入れるリスク：`-test.testlogfile` は `go help testflag` に載らない `cmd/go` 専用のフラグであり（`testing.go` のフラグ説明は「for use only by cmd/go」）、ログの形式（`# test log` の見出しと `open <path>` 行）も内部仕様である。Go ツールチェーンの更新で形式が変わると 4 パッケージのテストが失敗する。失敗は `t.Fatalf` で表に出るため黙って検証が外れることはなく、そのときは読み取り部分を直すか、壊し確認だけの検証に戻す（`03_implementation_plan.md` §5）。
+2. キャッシュキー登録の検証は実装時の壊し確認（§7.2）で行い、登録を確かめる恒久的な自動テストは置かない。各 `os.ReadFile` には、`cmd/yt2column/deadcode_test.go:207-211` と同じく、テストキャッシュのキーに入れるために読む旨の英語コメントを付ける。
+   - 理由：`go help test` は「モジュール内のファイルを開いたテストは、そのファイルが変わっていない実行にだけ一致する」と定めており（`cmd/go/internal/test/test.go:135-138`）、`os.ReadFile` による登録は文書化された挙動である。一方、登録を自動で確かめる手段は `cmd/go` 専用の非公開フラグ `-test.testlogfile`（`testing.go` のフラグ説明は「for use only by cmd/go」）しかなく、ログ形式も内部仕様のため、恒久テストにすると Go の更新で壊れうる。読み込みが将来消えても害は単独変更時のキャッシュ済み PASS に限られ、前例の `deadcode_test.go` も自動テストを持たないため、自動テストは維持費に見合わない（`CLAUDE.md`「Testing Strategy」）。
+   - 採らなかった案：(a) `-test.testlogfile` で自テストバイナリを再実行する自動テスト（非公開機能に依存するため）、(b) 読み込み関数を差し替え可能にして呼び出しを記録するテスト（差し替え口が 4 パッケージに増え、確かめられるのも呼び出しまでのため）、(c) 読んだ内容を一時ファイルに書き出して実行する構造（スクリプトには使えるが、`$(MAKE)` で自身を再帰呼び出しする `Makefile` には使えないため）。
+   - 人間の判断：2026-11-28、PR #1211 のレビューで (a) に代えて本案を選んだ。
    - ADR：なし（個別タスク内のテスト設計であり、主要決定ではない）。
 3. `internal/ciskip` の実スクリプト実行テストで使うランナー生成を `internal/ciskip/test_helpers.go` の共通ヘルパーに集約する。
    - 理由：`internal/ciskip/test_helpers.go:145`（`(*testGitRepo).runners`）と `internal/ciskip/git_test.go:654`（`TestCheckExtensionChangesEarlyExitNoDeadlock`）の 2 箇所がそれぞれ `cmdrunner.NewOS(scriptOpts)` を組み立てており、共通ヘルパー（`newRealScriptRunner`）へ切り出すことで `hasExtensionChangesScript` の読み込みを 1 箇所に集約できるため。
@@ -44,10 +45,10 @@ Go の `go test` キャッシュはテストプロセス自身の `os.Open` 呼�
 
 対象とするパッケージと配置は次の 4 パッケージおよび CI ワークフロー・開発者向け規約である。
 
-- `cmd/yt2column`（スクリプト実行ヘルパー・`Makefile` 実行ヘルパー・キャッシュ登録確認テスト）
-- `internal/chief`（`high-review-decision.sh` との整合性テスト・キャッシュ登録確認テスト）
-- `internal/ciskip`（`has-extension-changes.sh` の実スクリプトランナー生成ヘルパー・キャッシュ登録確認テスト・`doc-guard` ワークフローガードテスト）
-- `internal/maketestutil`（`Makefile` ターゲット実行ヘルパー・キャッシュ登録確認テスト）
+- `cmd/yt2column`（スクリプト実行ヘルパー・`Makefile` 実行ヘルパー）
+- `internal/chief`（`high-review-decision.sh` との整合性テスト）
+- `internal/ciskip`（`has-extension-changes.sh` の実スクリプトランナー生成ヘルパー・`doc-guard` ワークフローガードテスト）
+- `internal/maketestutil`（`Makefile` ターゲット実行ヘルパー）
 - `.github/workflows/ci.yml`・`CLAUDE.md`（`doc-guard` ジョブの `go test` コマンドとその引用）
 
 （簡易な進め方のため Mermaid 図は省略する。）
@@ -64,22 +65,19 @@ N/A（既存の公開インターフェース・型定義・関数シグネチ�
 |---|---|---|---|
 | `cmd/yt2column/test_helpers_gitfixture.go` | 変更 | `(*gitFixture).runScript`（163 行目）で `filepath.Abs(script)` の直後に対象スクリプトを `os.ReadFile` で読み、読み込み失敗時は `f.t.Fatalf` で即座に失敗させる。これにより `review_records_test.go`・`high_review_decision_test.go`・`adr_candidates_docs_test.go` の 3 テストすべてを対象にできる | AC-01 |
 | `cmd/yt2column/makefile_test.go` | 変更 | `makeDryRun`（215 行目）および `recipeStub.command`（415 行目）で `filepath.Join(repositoryRoot, "Makefile")` を `os.ReadFile` で読み、失敗時は `t.Fatalf` で失敗させる | AC-04 |
-| `cmd/yt2column/test_cache_inputs_test.go` | 新規 | `runScript`・`makeDryRun`・`recipeStub.command` が対象スクリプトおよび `Makefile` を Go の `testlog` に `open` 記録することを、`-test.testlogfile` を用いた自テストバイナリ再実行で確かめる | AC-01, AC-04 |
-| `internal/chief/markers_parity_test.go` | 変更 | `TestMarkerReadingMatchesDecisionScript`（64 行目付近）で `decisionScript` の絶対パスを `os.ReadFile` で読み、失敗時は `t.Fatalf` で失敗させる。あわせて `-test.testlogfile` で `high-review-decision.sh` が `open` 記録されることを確かめるテストを追加する | AC-02 |
+| `internal/chief/markers_parity_test.go` | 変更 | `TestMarkerReadingMatchesDecisionScript`（64 行目付近）で `decisionScript` の絶対パスを `os.ReadFile` で読み、失敗時は `t.Fatalf` で失敗させる | AC-02 |
 | `internal/ciskip/test_helpers.go` | 変更 | `newRealScriptRunner(t *testing.T) cmdrunner.InputRunner` を追加し、`scriptOpts.Dir` をリポジトリルートに設定すると同時に `hasExtensionChangesScript` を `os.ReadFile` で読む。`(*testGitRepo).runners`（145 行目）からこれを呼ぶ | AC-03 |
-| `internal/ciskip/git_test.go` | 変更 | `TestCheckExtensionChangesEarlyExitNoDeadlock`（654 行目）の実スクリプトランナー生成を `newRealScriptRunner(t)` に置き換える。あわせて `-test.testlogfile` で `has-extension-changes.sh` が `open` 記録されることを確かめるテストを追加する | AC-03 |
+| `internal/ciskip/git_test.go` | 変更 | `TestCheckExtensionChangesEarlyExitNoDeadlock`（654 行目）の実スクリプトランナー生成を `newRealScriptRunner(t)` に置き換える | AC-03 |
 | `.github/workflows/ci.yml` | 変更 | `doc-guard` ジョブ（291 行目）の `go test` コマンドに `-count=1` を追加する | AC-05 |
 | `CLAUDE.md` | 変更 | 959 行目の `doc-guard` 実行コマンドの引用に `-count=1` を反映し、`.github/workflows/ci.yml` と一致させる | AC-05 |
 | `internal/ciskip/workflow_pin_test.go` | 変更 | `doc-guard` ジョブの検証に、実行ステップの `go test` コマンドに `-count=1` が含まれることの確認を追加する | AC-06 |
 | `internal/maketestutil/make.go` | 変更 | `RunTarget`（106 行目）で `filepath.Join(root, "Makefile")` を `os.ReadFile` で読み、失敗時は `t.Fatalf` で失敗させる。これにより `internal/transcript`・`internal/llm/{deepseek,claude,openai}`・`cmd/yt2column` の各 `makefile_test.go` をまとめて対象にできる | AC-04 |
-| `internal/maketestutil/make_test.go` | 変更 | `RunTarget` が対象ディレクトリの `Makefile` を Go の `testlog` に `open` 記録することを `-test.testlogfile` で確かめるテストを追加する | AC-04 |
 
 既存テストへの影響：既存テストが前提とする振る舞いは変わらず、既存のテストを修正・削除する必要はない（`internal/ciskip/git_test.go:655-657` のみ共通ヘルパー呼び出しへ置き換える）。
 
 ## 4. エラーハンドリング設計 (Error Handling Design)
 
 - テストヘルパーまたはテスト関数が対象ファイル（スクリプト・`Makefile`）の `os.ReadFile` に失敗した場合、テストを黙って続行したりスキップしたりせず、ファイルパスとエラー内容を添えて `t.Fatalf` で即座に失敗させる。
-- `-test.testlogfile` 検証テストで子テストバイナリの起動やログファイルの読み取りに失敗した場合も、同様に `t.Fatalf` で失敗させる。
 - 新しいエラー型の定義は不要（N/A）。
 
 ## 5. セキュリティ考慮事項 (Security Considerations)
@@ -91,29 +89,21 @@ N/A（`01_requirements.md` §4.2 のとおり、`docs/dev/security.md` の適用
 ### 6.1. テスト実行時のファイル登録フロー
 
 1. 各テストまたは共通ヘルパーが子プロセス（`bash`・`make`）を起動する前に、渡すリポジトリ内ファイルのパスを解決する。
-2. 解決したパスに対して Go のテストプロセス自身で `os.ReadFile` を実行する（失敗時は `t.Fatalf`）。この呼び出しにより Go ランタイムが `testlog.Open` へパスを記録し、`go test` がファイル内容をテストキャッシュキーに含める。
+2. 解決したパスに対して Go のテストプロセス自身で `os.ReadFile` を実行する（失敗時は `t.Fatalf`）。この呼び出しにより Go ランタイムが `testlog.Open` へパスを記録し、`go test` がファイルのサイズと更新時刻をテストキャッシュキーに含める。
 3. 従来どおり子プロセスを起動してテストを実行する。
-
-### 6.2. `-test.testlogfile` による自動検証フロー
-
-1. 検証テストは、環境変数（または再帰防止用のテスト専用サブテスト名）で親プロセスと子プロセスを区別する。
-2. 親プロセスは `t.TempDir()` にログファイルパスを用意し、現在のテストバイナリ（`os.Args[0]`）を `-test.run` で対象のヘルパー実行サブテストだけに絞り、`-test.testlogfile=<logPath>` を付けて実行する。同じファイルを開く複数ヘルパー（`cmd/yt2column/makefile_test.go` の `makeDryRun` と `recipeStub.command`）は、片方の読み込み欠落をもう片方が覆い隠さないよう、別々のサブテストでそれぞれ独立した子プロセスと独立した `-test.testlogfile` を用いて検証する。
-3. **`internal/chief` での `PATH` 復元:** `internal/chief/main_test.go:12-13` は `isolateTestPath()`（`internal/chief/test_helpers.go:39,44-69`、コミット `5bba819a`）を呼び、`PATH` を空の一時ディレクトリへ書き換える（`testTools` には `bash` が含まれず、`testBash` は別に解決される）。そのため `internal/chief` で `os.Args[0]` を起動する際は、`testBash` へのシンボリックリンクを置いた一時ディレクトリと `testToolsDir` を子プロセスの `PATH` に含め、子プロセスの `isolateTestPath()` が `testTools` と `bash` の両方を解決できるようにする。あわせて `-test.run` は 1 つのサブテスト（または専用ヘルパー）に絞り、23 件すべてのサブテストを重複実行しない。
-4. 子プロセス終了後、親プロセスは `<logPath>` を読み、`open <対象ファイルパス>` に一致する行（絶対パスまたはパッケージ相対パスを `filepath.Clean`／`filepath.Abs` で正規化して比較）が存在することを確かめる。
 
 ## 7. テスト戦略 (Test Strategy)
 
 ### 7.1. ユニットテスト
 
-- **キャッシュキー登録テスト（`-test.testlogfile`）:** 4 パッケージ（`cmd/yt2column`・`internal/chief`・`internal/ciskip`・`internal/maketestutil`）それぞれに、各ヘルパー／テストが対象スクリプトまたは `Makefile` を Go の `testlog` に `open` 記録することを確かめるテストを追加する。`cmd/yt2column` の `makeDryRun` と `recipeStub.command` はそれぞれ別の子プロセス・別のログファイルで検証する。`internal/chief` のテストは `TestMarkerReadingMatchesDecisionScript` と同じく直列トップレベルテストとして実行して並列テストの `flock` 継承問題（`internal/chief/markers_parity_test.go:44-49`）を避け、§6.2 のとおり子プロセスに `testToolsDir` と `testBash` を含む `PATH` を渡す。
 - **`doc-guard` ワークフローガードテスト:** `internal/ciskip/workflow_pin_test.go` で `.github/workflows/ci.yml` の `doc-guard` ジョブの `go test` ステップを検索し、行内コメント（`#` 以降）を除いたコマンド文字列をトークン単位（`strings.Fields`）で解析して、すべての `go test` 実行コマンドに引数として `-count=1` が含まれること、および `go test` ステップが 1 件以上存在すること（空振りによる偽陽性防止）を確かめる。
 
 ### 7.2. 統合テスト・壊し確認
 
 - 実装フェーズで、issue #1205 の再現手順に沿って以下を実機確認し、コミットメッセージに記録する。
   1. 修正前の状態で、スクリプト（例：`.claude/commands/_lib/high-review-decision.sh`）を壊してもキャッシュ済みの PASS が返ることを確かめる。
-  2. 修正後の状態で、各対象ファイル（`review-records.sh`・`high-review-decision.sh`・`adr-correction-candidates.sh`・`has-extension-changes.sh`・`Makefile`）だけを壊す変更をしたあとの `go test`／`make test` がキャッシュを使わずに再実行されて失敗することを確かめる（壊しは確認後に戻す）。`cmd/yt2column` の `Makefile` については、パッケージ全体の実行では既存の `deadcode_test.go:210,680` の読み込みだけで再実行されてしまい、`makeDryRun`・`recipeStub.command` の読み込みを確かめられない。このため `-run` で `makefile_test.go` のテストだけに絞った実行で確かめる。2 つのヘルパーそれぞれの読み込みは手順 3 とキャッシュキー登録テストで確かめる。
-  3. 6 箇所（`RunTarget`・`newRealScriptRunner`・`TestMarkerReadingMatchesDecisionScript`・`runScript`・`makeDryRun`・`recipeStub.command`）の `os.ReadFile` をそれぞれ一時的に外し、対応する新しいキャッシュキー登録テストがそれぞれ失敗することを確かめる。
+  2. 修正後の状態で、各対象ファイル（`review-records.sh`・`high-review-decision.sh`・`adr-correction-candidates.sh`・`has-extension-changes.sh`・`Makefile`）だけを壊す変更をしたあとの `go test`／`make test` がキャッシュを使わずに再実行されて失敗することを確かめる（壊しは確認後に戻す）。
+  3. 6 箇所（`RunTarget`・`newRealScriptRunner`・`TestMarkerReadingMatchesDecisionScript`・`runScript`・`makeDryRun`・`recipeStub.command`）について、その箇所の `os.ReadFile` だけを一時的に外した状態で対象ファイルを変えると `(cached)` の PASS に戻り、戻すと再実行されることを確かめる。これにより、各箇所の読み込みが再実行の原因であることを示す。実行は、その箇所を通るテストだけに `-run` で絞る。同じファイルを読む別の箇所が同じ実行に入ると、読み込みを外しても再実行されてしまうためである。`cmd/yt2column` では、既存の `deadcode_test.go:210,680` も `Makefile` を読む。`makeDryRun` は `TestMakeWasmCheck`、`recipeStub.command` は `TestCoverageCompareRecipeForwardsSignal` のように、そのヘルパーだけを使うテストに絞る。
   4. `doc-guard` の `-count=1` を外したときに `workflow_pin_test.go` のガードが失敗することを確かめる。
 - 最後に `make test` と `make lint` の全通過を確かめる。
 
@@ -125,10 +115,10 @@ N/A（§5 のとおりセキュリティ要件の対象外）。
 
 変更規模が小さく全体が 1 つの関心事で完結するため、単一のフェーズ（フェーズ 1）で次の順に実装する。
 
-1. `internal/maketestutil/make.go` と `internal/maketestutil/make_test.go`（複数パッケージが依存する共通ヘルパーを先に修正）
-2. `internal/ciskip/test_helpers.go`・`internal/ciskip/git_test.go`（`has-extension-changes.sh` の読み込み集約と検証テスト）
-3. `internal/chief/markers_parity_test.go`（`high-review-decision.sh` の読み込みと検証テスト）
-4. `cmd/yt2column/test_helpers_gitfixture.go`・`cmd/yt2column/makefile_test.go`・`cmd/yt2column/test_cache_inputs_test.go`（スクリプト・`Makefile` ヘルパーの修正と検証テスト）
+1. `internal/maketestutil/make.go`（複数パッケージが依存する共通ヘルパーを先に修正）
+2. `internal/ciskip/test_helpers.go`・`internal/ciskip/git_test.go`（`has-extension-changes.sh` の読み込み集約）
+3. `internal/chief/markers_parity_test.go`（`high-review-decision.sh` の読み込み）
+4. `cmd/yt2column/test_helpers_gitfixture.go`・`cmd/yt2column/makefile_test.go`（スクリプト・`Makefile` ヘルパーの修正）
 5. `.github/workflows/ci.yml`・`CLAUDE.md`・`internal/ciskip/workflow_pin_test.go`（`doc-guard` への `-count=1` 追加、引用更新、およびガードテスト）
 6. 壊し確認と全体検証（`make test && make lint`）の実行
 
