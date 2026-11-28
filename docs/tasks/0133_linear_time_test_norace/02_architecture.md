@@ -23,7 +23,7 @@
 **設計の際に決めたこと（2026-11-28）:**
 
 -   `test-parse-norace` は、1 回の `go test` に `-p 1` を付け、`./internal/transcript` と `./internal/publisher` の 2 つのパッケージを渡す。`-run` は `^(TestParseCopiedLargeInputs|TestNeutralizedDisplayMarkdownLinearTime)$` とする（AC-03・AC-05）。
-    -   理由: `go test` は既定で、パッケージのテストのバイナリを `GOMAXPROCS` の数まで並行に走らせる。`-p 1` は、同時に走らせるテストのバイナリを 1 つに限る（`go help build` の `-p n`）。3 文書のレビューの際に、このレシピで 2 つのパッケージが順に走り、それぞれで 1 つのテストだけが走ることを確かめた。
+    -   理由: `go test` は既定で、パッケージのテストのバイナリを `GOMAXPROCS` の数まで並行に走らせる。`-p 1` は、同時に走らせるビルドのコマンドとテストのバイナリを 1 つに限る（`go help build` の `-p n`）。ビルドも直列になるので、ビルドのキャッシュが空のときは遅くなる（要件書 4.1 節）。3 文書のレビューの際に、このレシピで 2 つのパッケージが順に走り、それぞれで 1 つのテストだけが走ることを確かめた。
     -   既存のガード（`internal/transcript/makefile_test.go:81-91` の `TestMakeTestRunsParseNorace`）は、`go test` の代わりに呼ばれるスタブ（GOTEST）が最後の呼び出しだけを残すことを前提にしている。呼び出しを 1 回に保てば、このガードをそのまま使える。ADR-0038「結果」の「`-run` で絞った 1 回の `go test`」も保たれる。
     -   `-p 1` を外すと、2 つのパッケージが黙って並行に走るようになる。そのため、ガードで固定する（3.3 節）。
     -   採らなかった案: レシピで `go test` を 2 回、順に実行する案（スタブが最後の呼び出ししか残さないので、ガードとテストのヘルパー `internal/maketestutil` の作り直しが要る）。
@@ -56,10 +56,11 @@ N/A。コンポーネントの構成とデータの流れを変えない。
 | `internal/transcript/copied_format_test.go` | 変更 | `make test-parse-norace` について述べるコメントだけを直す（3.3 節） |
 | `internal/maketestutil/make.go` | 変更 | 判定を求める環境変数の名前と値の定数と、`-run` の値を名前の並びとして読む関数を足す（3.3 節） |
 | `internal/maketestutil/make_test.go` | 変更 | 足した関数の受け付ける形と拒む形のテスト（3.3 節） |
+| `docs/dev/conventions/package_reference.md` | 変更 | `internal/maketestutil` の行の責務と主な名前を、足した定数・関数・センチネルエラーに合わせる |
 | `Makefile` | 変更 | `test-parse-norace` のレシピと、`test` と `test-parse-norace` のコメント（3.4 節） |
 | `.github/workflows/ci.yml` | 変更 | `make test-parse-norace` の手順の名前だけを変える（3.4 節） |
 | `CLAUDE.md` | 変更 | 「Test Commands」の `make test`・`make test-parse-norace`・`-race` なしの `go test` の項（3.4 節） |
-| `docs/dev/adr/0038-deadcode-and-race-free-timing.md` | 変更 | 3 文書の PR で、題名・背景・決定・採らなかった案・結果・経緯を更新済み。実装が設計とずれたときだけ直す |
+| `docs/dev/adr/0038-deadcode-and-race-free-timing.md` | 変更 | 3 文書の PR で、題名・背景・決定・採らなかった案・結果・経緯を更新済み。決定の食い違いの項（#1206 の実装で解消する）を消す。実装が設計とずれたときはそれも直す |
 | `docs/dev/adr/README.md` | 変更 | 3 文書の PR で、ADR-0038 の行の題名を更新済み |
 
 製品のコード（`internal/publisher` のテスト以外のファイル）は変えない。
@@ -67,10 +68,10 @@ N/A。コンポーネントの構成とデータの流れを変えない。
 ### 3.2. 線形時間テスト
 
 -   2 つのビルドタグのファイルは、`internal/transcript` の `copiedParseChecksDeadline` と同じ形で、真偽の定数を 1 つ置く。どちらのファイルも、定数の意味と、`-race` 付きのビルドで判定しない理由をコメントに書く。
--   テストは、最初に環境変数 `YT2COLUMN_TEST_TIMING` を読む。
+-   テストは、最初に環境変数 `YT2COLUMN_TEST_TIMING` の値を、`internal/maketestutil` の純粋な関数（環境変数を読む関数を引数に取る）で判定する。
     -   ないか空なら、判定を求めない。
     -   `1` なら、判定を求める。
-    -   それ以外の値なら、受け付ける値（`1`）と読んだ値を示して `t.Fatalf` で失敗する（AC-04）。
+    -   それ以外の値なら、センチネルエラーを包んで返す。テストは、受け付ける値（`1`）と読んだ値を示して `t.Fatalf` で失敗する（AC-04）。
 -   時間比を判定するのは、`-race` なしのビルドの定数が真で、判定を求めるときだけである。`-race` 付きのビルドでは、環境変数が `1` でも判定しない（AC-01）。
 -   入力ごとのサブテスト（`open URLs`・`after a '['`）は、次の順に確かめる。
     1.  8000 単位の入力で `NeutralizedDisplayMarkdown` を 1 回呼び、エラーがないことと、`checkNeutralizedContract`（`internal/publisher/display_render_test.go:30-43`）の契約を確かめる（AC-02）。
@@ -83,7 +84,8 @@ N/A。コンポーネントの構成とデータの流れを変えない。
 -   **`internal/maketestutil` に足すもの:**
     -   判定を求める環境変数の名前（`YT2COLUMN_TEST_TIMING`）と値（`1`）の定数。線形時間テストとガードは、この定数を参照する。
     -   `-run` の値を読む関数。値が `^(` で始まり `)$` で終わり、その間が `|` で区切られた空でない名前の並びのときに、その名前の並びを返す。ほかの形は、センチネルエラーを包んで返す。`regexp` の構文として解釈はせず、文字列の形だけを見る（`CLAUDE.md`「Reject, don't normalize」）。
-    -   その関数のテストを `internal/maketestutil/make_test.go` に足す。受け付ける例を 1 つと、拒む代表の例（`^(` がない、`)$` がない、空の名前がある、`^A$` の形）を表にし、拒む例は `errors.Is` でセンチネルエラーを確かめる。
+    -   環境変数の値を判定する純粋な関数（3.2 節）。
+    -   2 つの関数のテストを `internal/maketestutil/make_test.go` に足す。環境変数の関数は、ない、空、`1`、`0`、`true`、前後に空白のある ` 1` を表にし、`1` 以外の空でない値をセンチネルエラーで拒むことを `errors.Is` で確かめる（AC-04）。`-run` の関数は、受け付ける例を 1 つと、拒む代表の例（`^(` がない、`)$` がない、空の名前がある、`^A$` の形）を表にし、拒む例は `errors.Is` でセンチネルエラーを確かめる。
 -   **`internal/transcript` の `TestMakeTestParseNorace`:**
     -   `maketestutil.RunTarget` に環境変数の名前を記録させ、その値が `1` であることを確かめる（AC-06）。
     -   期待する引数を `-tags test -count=1 -v -p 1 -timeout <timeout> -run <run> ./internal/transcript ./internal/publisher` とし、引数の全体を順に比べる（AC-05・AC-06）。
@@ -139,4 +141,4 @@ N/A。製品の処理の流れは変わらない。`make test` は、いまと�
 
 ## 9. 将来の拡張性
 
--   ほかに時間を確かめるテストを加えるときは、同じくビルドタグのファイルの定数と `YT2COLUMN_TEST_TIMING` で判定を切り替え、`test-parse-norace` の `-run` にも加える。そのとき、`internal/transcript` のガードが確かめる名前の数と、加えたテストのパッケージのガードも直す。
+-   N/A。ほかに時間を確かめるテストを加えるときの扱いは、本タスクでは決めない。そのタスクが、ADR-0038 の決定を読んで決める。

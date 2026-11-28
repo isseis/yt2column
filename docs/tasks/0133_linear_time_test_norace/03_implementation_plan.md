@@ -60,9 +60,10 @@
 ### フェーズ 1: 線形時間テスト、レシピ、ガード、記述（設計書 3 章、AC-01〜AC-08）
 
 - [ ] **ステップ 1-1**: `internal/maketestutil` の定数と関数
-    - 変えるファイル: `internal/maketestutil/make.go`・`internal/maketestutil/make_test.go`
-    - 設計書 3.3 節のとおり、環境変数の名前と値の定数、`-run` の値を名前の並びとして読む関数、センチネルエラー、その表のテストを足す
-    - 壊し方の確認: 関数が `)$` のない値を受け付けるように一時的に変え、`go test -tags test -count=1 ./internal/maketestutil` が失敗することを確かめる。結果をコミットメッセージに書く
+    - 変えるファイル: `internal/maketestutil/make.go`・`internal/maketestutil/make_test.go`・`docs/dev/conventions/package_reference.md`
+    - 設計書 3.2 節・3.3 節のとおり、環境変数の名前と値の定数、環境変数の値を判定する純粋な関数、`-run` の値を名前の並びとして読む関数、それぞれのセンチネルエラー、その表のテストを足す
+    - `docs/dev/conventions/package_reference.md` の `internal/maketestutil` の行を、足した名前に合わせて同じコミットで直す
+    - 壊し方の確認（どれも確認の後に元に戻す）: `-run` の関数が `)$` のない値を受け付けるように変える。環境変数の関数が `0` を判定を求めない値として受け付けるように変える。どちらでも `go test -tags test -count=1 ./internal/maketestutil` が失敗することを確かめる。結果をコミットメッセージに書く
     - 完了の条件: `go test -tags test -count=1 ./internal/maketestutil` が通る
 - [ ] **ステップ 1-2**: 線形時間テストの切り替え
     - 変えるファイル: `internal/publisher/display_render_test.go`。追加するファイル: `internal/publisher/display_render_race_test.go`・`internal/publisher/display_render_norace_test.go`
@@ -98,7 +99,7 @@
     - 完了の条件: ガードが通り、コミットメッセージに壊し方の記録がある
 - [ ] **ステップ 1-4**: CI の手順の名前と記述
     - 変えるファイル: `.github/workflows/ci.yml`・`CLAUDE.md`・`Makefile` のコメント
-    - 設計書 3.4 節のとおりに書く。ADR-0038 は 3 文書の PR で更新済みである。実装が設計とずれたときだけ直す
+    - 設計書 3.4 節のとおりに書く。ADR-0038 は 3 文書の PR で更新済みである。決定の食い違いの項（#1206 の実装で解消する）を消す。`git grep -nE 'issues/1206([^0-9]|$)' origin/main -- docs/dev/adr/` でほかに食い違いの項がないかも確かめる（`docs/dev/conventions/adr.md`「Discrepancy statements」）。実装が設計とずれたときはそれも直す
     - `make fmt`・`make test`・`make lint` を通す（AC-08）
     - 完了の条件: `make test`・`make lint` が通る
 
@@ -154,7 +155,7 @@
 | AC-01 | `test` | ステップ 1-2 の壊し方の確認（2 乗の時間で、環境変数を `1` にした `-race` 付きのビルドが通る）。記録はコミットメッセージ |
 | AC-02 | `test` | `TestNeutralizedDisplayMarkdownLinearTime` の成功と出力の契約の確認と、ステップ 1-2 の壊し方の確認 |
 | AC-03 | `test` | `make test-parse-norace` と、ステップ 1-3 の壊し方の確認（2 乗の時間でターゲットが失敗する） |
-| AC-04 | `test` | ステップ 1-2 の壊し方の確認（環境変数なしでは 2 乗の時間でも通り、値が `2` では失敗する） |
+| AC-04 | `test` | `internal/maketestutil` の環境変数の関数の表のテストと、ステップ 1-2 の壊し方の確認（環境変数なしでは 2 乗の時間でも通り、値が `2` では失敗する） |
 | AC-05 | `test` | `TestMakeTestParseNorace` |
 | AC-06 | `test` | `TestMakeTestParseNorace`・`TestMakeTestParseNoraceRunsLinearTime`・`TestMakeTestRunsParseNorace`・`TestCIRunsParseNorace` と、ステップ 1-3 の壊し方の確認 |
 | AC-07 | `manual` | PR のレビューで、`CLAUDE.md`・`Makefile` のコメント・CI の手順の名前・ADR-0038 を読む |
