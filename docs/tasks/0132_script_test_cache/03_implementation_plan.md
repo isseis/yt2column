@@ -140,7 +140,7 @@
 - [x] ステップ 1-5: `.github/workflows/ci.yml` の `doc-guard` `-count=1` 追加、`CLAUDE.md` 更新、および `TestWorkflowDocGuardDisablesCache` 追加完了
 - [x] ステップ 1-6: 壊し確認および `make fmt`・`make test`・`make lint` 通過
 - [x] PR を作成した: https://github.com/isseis/yt2column/pull/1213
-- [ ] PR がマージされた
+- [x] PR がマージされた
 
 ## 7. 完了基準 (Success Criteria)
 
