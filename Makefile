@@ -89,7 +89,8 @@ clean:
 
 # Unit tests. Never reach yt-dlp or an LLM API (fakes only).
 # After the -race run, test-parse-norace checks the copied-transcript parse
-# deadline, which the -race build does not check.
+# deadline and the neutralizer's linear-time ratio, which the -race build does
+# not check.
 test:
 	$(GOTEST) -tags test -race -v ./...
 	@$(MAKE) --no-print-directory test-parse-norace
@@ -100,16 +101,19 @@ test-ci:
 	$(GOTEST) -tags test -race -count=1 -coverprofile=coverage.out ./...
 	@$(GOCMD) tool cover -func=coverage.out | tail -1
 
-# Parse-time check of the copied-transcript parser: runs only
-# TestParseCopiedLargeInputs, without -race and without coverage, so the parse
-# is timed as the production builds parse it and with no other package's tests running
-# alongside. The build without the race detector is the only one that compares
-# the parse time with the deadline. -count=1 keeps a rerun from reusing a
-# cached result. `make test` calls this from its recipe after the -race run
-# rather than listing it as a prerequisite, which `make -j` would run in
-# parallel with the -race run and so slow down the timed parse.
+# Timing checks of the copied-transcript parser and the display Markdown
+# neutralizer: runs only TestParseCopiedLargeInputs and
+# TestNeutralizedDisplayMarkdownLinearTime, without -race and without coverage,
+# so the times are measured as the production builds run and with no other
+# test running alongside. -p 1 runs the two packages one at a time.
+# YT2COLUMN_TEST_TIMING=1 asks the linear-time test to compare the times. The
+# build without the race detector is the only one that compares either time.
+# -count=1 keeps a rerun from reusing a cached result. `make test` calls this
+# from its recipe after the -race run rather than listing it as a prerequisite,
+# which `make -j` would run in parallel with the -race run and so slow down the
+# timed checks.
 test-parse-norace:
-	$(GOTEST) -tags test -count=1 -v -timeout 5m -run '^TestParseCopiedLargeInputs$$' ./internal/transcript
+	YT2COLUMN_TEST_TIMING=1 $(GOTEST) -tags test -count=1 -v -p 1 -timeout 5m -run '^(TestParseCopiedLargeInputs|TestNeutralizedDisplayMarkdownLinearTime)$$' ./internal/transcript ./internal/publisher
 
 # Check that README.en.md's sync marker names the blob of README.md, so the
 # English README carries the current README.md. make test runs the same test;
