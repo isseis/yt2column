@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-28 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-28 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 設計の全体像
@@ -142,3 +142,7 @@ N/A。製品の処理の流れは変わらない。`make test` は、いまと�
 ## 9. 将来の拡張性
 
 -   N/A。ほかに時間を確かめるテストを加えるときの扱いは、本タスクでは決めない。そのタスクが、ADR-0038 の決定を読んで決める。
+
+## 変更履歴
+
+- 2026-11-28 承認（isseis、#1212）

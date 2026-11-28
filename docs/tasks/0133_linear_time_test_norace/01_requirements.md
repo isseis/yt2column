@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `simple` |
 | Created | 2026-11-28 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-28 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -191,3 +191,7 @@
 -   **線形時間テスト:** `TestNeutralizedDisplayMarkdownLinearTime`。
 -   **成功と出力の契約:** 1 章「要件定義の際に決めたこと」で定めた、`NeutralizedDisplayMarkdown` がエラーを返さないことと、その出力が満たすべき性質。
 -   **`-race` 付きのビルド／`-race` なしのビルド:** データ競合の検出器を有効にしたテストのビルドと、有効にしないビルド。ADR-0038 の用語に合わせる。
+
+## 変更履歴
+
+- 2026-11-28 承認（isseis、#1212）
