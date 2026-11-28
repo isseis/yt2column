@@ -28,6 +28,12 @@ func BuildTemplate(root string, build func(root string) error) (*Template, error
 	if root == "" {
 		return nil, fmt.Errorf("%w: template root is empty", errInvalidTemplateArg)
 	}
+	if strings.ContainsAny(root, "\n\r\x00") {
+		return nil, fmt.Errorf("%w: template root contains a control character", errInvalidTemplateArg)
+	}
+	if filepath.Clean(root) != root {
+		return nil, fmt.Errorf("%w: template root must be clean", errInvalidTemplateArg)
+	}
 	if build == nil {
 		return nil, fmt.Errorf("%w: template build function is nil", errInvalidTemplateArg)
 	}
@@ -142,6 +148,9 @@ func rewriteWorkGitConfig(srcRoot, dstRoot string) error {
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+			if strings.Contains(line, srcRoot) {
+				return fmt.Errorf("%w: unexpected template root reference in section %q", errUnexpectedConfig, line)
+			}
 			section = trimmed
 			continue
 		}
@@ -149,19 +158,19 @@ func rewriteWorkGitConfig(srcRoot, dstRoot string) error {
 			key := strings.TrimSpace(lhs)
 			switch {
 			case strings.EqualFold(section, "[core]") && strings.EqualFold(key, "excludesfile"):
-				val, err := unquoteGitConfigValue(rhs)
-				if err != nil || val != wantExcludes {
+				rewritten, err := rewriteConfigPathLine(lhs, rhs, wantExcludes, newExcludes)
+				if err != nil {
 					return fmt.Errorf("%w: core.excludesfile line %q", errUnexpectedConfig, line)
 				}
-				lines[i] = strings.TrimRight(lhs, " \t") + " = " + quoteGitConfigValue(newExcludes)
+				lines[i] = rewritten
 				excludesCount++
 				continue
 			case isOriginRemoteSection(section) && strings.EqualFold(key, "url"):
-				val, err := unquoteGitConfigValue(rhs)
-				if err != nil || val != wantRemote {
+				rewritten, err := rewriteConfigPathLine(lhs, rhs, wantRemote, newRemote)
+				if err != nil {
 					return fmt.Errorf("%w: remote.origin.url line %q", errUnexpectedConfig, line)
 				}
-				lines[i] = strings.TrimRight(lhs, " \t") + " = " + quoteGitConfigValue(newRemote)
+				lines[i] = rewritten
 				urlCount++
 				continue
 			}
@@ -178,6 +187,14 @@ func rewriteWorkGitConfig(srcRoot, dstRoot string) error {
 		return fmt.Errorf("write config: %w", err)
 	}
 	return nil
+}
+
+func rewriteConfigPathLine(lhs, rhs, wantVal, newVal string) (string, error) {
+	val, err := unquoteGitConfigValue(rhs)
+	if err != nil || val != wantVal {
+		return "", errUnexpectedConfig
+	}
+	return strings.TrimRight(lhs, " \t") + " = " + quoteGitConfigValue(newVal), nil
 }
 
 func isOriginRemoteSection(section string) bool {

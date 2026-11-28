@@ -517,12 +517,15 @@ func TestThreadPathsRequiresTrustedOrNamed(t *testing.T) {
 	pathSteps := func(lookups ...cmdrunnertestutil.Step) []cmdrunnertestutil.Step {
 		return append([]cmdrunnertestutil.Step{repoStep(), graphqlStep(stageOne)}, lookups...)
 	}
-	accept := func(th testThread) Accept { return Accept{ThreadID: th.id, Fingerprint: testFingerprint(t, th)} }
+	accept := func(t *testing.T, th testThread) Accept {
+		t.Helper()
+		return Accept{ThreadID: th.id, Fingerprint: testFingerprint(t, th)}
+	}
 
 	t.Run("trusted_and_named", func(t *testing.T) {
 		t.Parallel()
 		g, _ := newTestGitHub(t, pathSteps(roleStep("mallory", "read"))...)
-		paths, err := g.ThreadPaths(t.Context(), mustPR(t), []Accept{accept(trusted), accept(untrusted)})
+		paths, err := g.ThreadPaths(t.Context(), mustPR(t), []Accept{accept(t, trusted), accept(t, untrusted)})
 		if err != nil {
 			t.Fatalf("ThreadPaths = %v", err)
 		}
@@ -537,8 +540,8 @@ func TestThreadPathsRequiresTrustedOrNamed(t *testing.T) {
 	for name, given := range map[string]Accept{
 		"fingerprint_differs": {ThreadID: trusted.id, Fingerprint: testFP},
 		"unknown_thread":      {ThreadID: "PRRT_gone", Fingerprint: testFP},
-		"resolved_thread":     accept(resolved),
-		"empty_thread":        accept(empty),
+		"resolved_thread":     accept(t, resolved),
+		"empty_thread":        accept(t, empty),
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -554,7 +557,7 @@ func TestThreadPathsRequiresTrustedOrNamed(t *testing.T) {
 		t.Parallel()
 		second := testThread{id: testThreadID(5), comments: []testComment{botComment(5, testSecondReviewer)}}
 		g, _ := newTestGitHubWith(t, bothReviewers, repoStep(), graphqlStep(stageOneResponse(t, []testThread{second}, false, "")))
-		paths, err := g.ThreadPaths(t.Context(), mustPR(t), []Accept{accept(second)})
+		paths, err := g.ThreadPaths(t.Context(), mustPR(t), []Accept{accept(t, second)})
 		if err != nil {
 			t.Fatalf("ThreadPaths = %v", err)
 		}
@@ -565,7 +568,7 @@ func TestThreadPathsRequiresTrustedOrNamed(t *testing.T) {
 	t.Run("named_twice", func(t *testing.T) {
 		t.Parallel()
 		g, _ := newTestGitHub(t)
-		if _, err := g.ThreadPaths(t.Context(), mustPR(t), []Accept{accept(trusted), accept(trusted)}); !errors.Is(err, ErrInvalidInput) {
+		if _, err := g.ThreadPaths(t.Context(), mustPR(t), []Accept{accept(t, trusted), accept(t, trusted)}); !errors.Is(err, ErrInvalidInput) {
 			t.Errorf("ThreadPaths = %v, want ErrInvalidInput", err)
 		}
 	})

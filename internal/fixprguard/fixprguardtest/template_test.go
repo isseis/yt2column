@@ -52,6 +52,12 @@ func TestBuildTemplateValidation(t *testing.T) {
 	if _, err := BuildTemplate("", func(string) error { return nil }); !errors.Is(err, errInvalidTemplateArg) {
 		t.Errorf("empty root: err = %v, want errInvalidTemplateArg", err)
 	}
+	if _, err := BuildTemplate(t.TempDir()+"/", func(string) error { return nil }); !errors.Is(err, errInvalidTemplateArg) {
+		t.Errorf("unclean root: err = %v, want errInvalidTemplateArg", err)
+	}
+	if _, err := BuildTemplate(filepath.Join(t.TempDir(), "bad\nroot"), func(string) error { return nil }); !errors.Is(err, errInvalidTemplateArg) {
+		t.Errorf("control char in root: err = %v, want errInvalidTemplateArg", err)
+	}
 	if _, err := BuildTemplate(t.TempDir(), nil); !errors.Is(err, errInvalidTemplateArg) {
 		t.Errorf("nil build: err = %v, want errInvalidTemplateArg", err)
 	}
@@ -128,6 +134,16 @@ func TestTemplateCopyRejectsConfigMismatch(t *testing.T) {
 	hooksPath = {{ROOT}}/hooks
 [remote "origin"]
 	url = {{ROOT}}/remote.git
+`,
+		},
+		{
+			name: "section_header_root_reference",
+			config: `[core]
+	excludesfile = {{ROOT}}/home/excludes
+[remote "origin"]
+	url = {{ROOT}}/remote.git
+[includeIf "gitdir:{{ROOT}}/work/"]
+	path = extra.gitconfig
 `,
 		},
 		{

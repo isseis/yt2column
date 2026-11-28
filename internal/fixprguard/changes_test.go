@@ -86,17 +86,19 @@ func TestEnumerateChanges(t *testing.T) {
 
 	t.Run("content_mode_and_link_change_the_id", func(t *testing.T) {
 		t.Parallel()
+		subRepo := *r
+		subRepo.t = t
 		before := judgedSetID(got)
 		for _, edit := range []func(){
-			func() { r.Write(testFile, "one\nTWO\nfour\n") },
-			func() { _ = os.Chmod(filepath.Join(r.Dir, testFile), 0o700) }, //nolint:gosec // an executable bit on a test file
+			func() { subRepo.Write(testFile, "one\nTWO\nfour\n") },
+			func() { _ = os.Chmod(filepath.Join(subRepo.Dir, testFile), 0o700) }, //nolint:gosec // an executable bit on a test file
 			func() {
-				_ = os.Remove(filepath.Join(r.Dir, "docs/notes/link.md"))
-				_ = os.Symlink("b.md", filepath.Join(r.Dir, "docs/notes/link.md"))
+				_ = os.Remove(filepath.Join(subRepo.Dir, "docs/notes/link.md"))
+				_ = os.Symlink("b.md", filepath.Join(subRepo.Dir, "docs/notes/link.md"))
 			},
 		} {
 			edit()
-			after := judgedSetID(enumerate(t, r))
+			after := judgedSetID(enumerate(t, &subRepo))
 			if after == before {
 				t.Errorf("judged set ID unchanged after an edit")
 			}
