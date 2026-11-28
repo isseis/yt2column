@@ -823,6 +823,7 @@ PR-4 は製品を変えない。
         status=PASS
         ```
 
+    -   F-006 の削除で減った時間（AC-13、1.5 節。PR-3 の `gotest.sh names` の値の再掲）: `internal/fixprguard` は base=161.875s → head=123.967s（37.908s 減）、`cmd/fixprguard` は base=35.98s → head=30.347s（5.633s 減）。それぞれ 1 回の実行で 2 つのパッケージを同時に動かした値なので、実行の揺れを含む目安である。
     -   AC-12（1 回目・旧 50% 基準。比較: `54b8299393190b3ed19c41031a12868209133c80` → `bfd67b0bfaff901f6089a3b46f3ce1703a3e21d7`、`cmd/fixprguard` が 55.55% で `FAIL` となり 1.6 節の判断へ）:
 
         ```text
