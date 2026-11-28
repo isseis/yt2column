@@ -24,8 +24,13 @@ for this PR only, the four network operations performed through `mergepr`:
 - `git ls-remote` on the PR's head branch
 - `git push` (non-force) to the PR's head branch
 
-It approves no other network operation, no merge, no PR write, and no dependency
-installation (`CLAUDE.md`, "Tool Execution Safety").
+In addition, when step 7 determines that extension checks are needed for this
+take-in, it approves running `make ext-install` (including fetching
+dependencies from `registry.npmjs.org`) strictly in step 7's bare standalone
+form (with no arguments, variables, or chaining).
+
+It approves no other network operation, no merge, no PR write, and no other
+dependency installation (`CLAUDE.md`, "Tool Execution Safety").
 
 ## Tool contract and line protocol
 
@@ -76,8 +81,13 @@ Never do any of the following during `/mergemain`:
    state, head branch, head commit, base branch, and whether the head belongs to
    another repository.
 9. Never run `git merge`, `git pull`, `git reset`, or `git push` directly (and never run
-   `git clean`, `git merge --abort`, or `make ext-install`). Perform taking in,
-   restoring, and pushing strictly through the `mergepr` take-in subcommands.
+   `git clean` or `git merge --abort`). Perform taking in, restoring, and
+   pushing strictly through the `mergepr` take-in subcommands. Never run
+   `make ext-install` outside step 7 (including after restoring in step 9),
+   never install dependencies by any other means (such as `npm ci`,
+   `npm install`, or `npx` under `extension/`), and when `make ext-install`
+   is denied or fails, never try another way to install dependencies or ask
+   the human yourself (the harness's own permission prompt is excluded).
 
 **Temporary files.** Never create temporary or working files inside the git work
 tree. Put any temporary files in the session scratchpad outside the work tree
@@ -107,7 +117,7 @@ step 9 before reporting:
 - `ADR の衝突` (ADR number/subject collision, discrepancy statement requiring re-check, or irreconcilable same-ADR edit)
 - `README の同期の失敗` (`mktrans.md` sub-step stopped or sync check failed unexpectedly)
 - `検査の失敗` (`make test`, `make lint`, `make ext-check`, or `git commit --no-edit` failed)
-- `検査の準備がない` (`make ext-preflight` failed)
+- `検査の準備がない` (`make ext-install` failed, timed out, or was denied by permission evaluation or the human)
 
 ## Procedure
 
@@ -261,10 +271,36 @@ applied to each, and a short summary of the resolution for step 10.
 
      If any listed path is under `extension/` or equals `README.md`,
      `README.en.md`, or `docs/dev/guides/development.md`:
-     1. Run `make ext-preflight` (never run `make ext-install`). If it fails,
-        run step 9 and go to step 10 with reason `検査の準備がない`.
+     1. Run `make ext-install` from the repository top level as a bare,
+        standalone command (no arguments, variables, or chaining) in the
+        foreground with a 10-minute timeout (`_lib/harness.md`, `shell-run`),
+        whether or not `extension/node_modules` already exists and without
+        stopping because the PR branch modifies `extension/package.json`,
+        `extension/package-lock.json`, `extension/scripts/check-lockfile.ts`,
+        or `Makefile`. If it reaches the timeout and the harness moves it to
+        the background, stop that background execution using the harness's
+        stop operation (for example, `TaskStop` in Claude Code) and treat it
+        as timed out. Record the outcome for step 10 as one of: succeeded,
+        failed, timed out, or denied. If it did not succeed, do not run
+        `make ext-check` and do not retry it (an adapter's elevated rerun
+        inside `shell-run` after a sandbox failure does not count as a retry;
+        use the post-elevation result as the `shell-run` outcome, except if
+        that elevated rerun is denied after the sandboxed attempt already ran,
+        record the outcome as failed so step 10 warns that
+        `extension/node_modules` may be missing or incomplete): run
+        step 9 and go to step 10 with reason `検査の準備がない`.
+        - When permission evaluation denies it, proceed to step 9 without
+          asking the human.
+        - When the human denies it at a permission prompt, regardless of any
+          follow-up instruction the human gives (including text entered when
+          denying), do not alter the take-in procedure or install
+          dependencies by any other means: proceed to step 9 and report with
+          reason `検査の準備がない`.
      2. Run `make ext-check`. If it fails, run step 9 and go to step 10 with
         reason `検査の失敗`.
+
+     Otherwise, run neither `make ext-install` nor `make ext-check`, and
+     record the `make ext-install` outcome for step 10 as not run.
 
 8. **Push (`mergemain-push`).**
    Run as a standalone command:
@@ -323,12 +359,36 @@ applied to each, and a short summary of the resolution for step 10.
         none.
       - **詳細**: brief summary of what failed, whether the branch and work tree
         were restored to `<base-head>`, and (when `--protocol` mismatched) the
-        reinstall instruction (`make install-mergepr` from `main`).
+        reinstall instruction (`make install-mergepr` from `main`). Also
+        include, according to step 7's `make ext-install` outcome:
+        - when `make ext-install` failed or timed out: (1) that
+          `make ext-install` failed and whether it timed out, which stage
+          failed (version check, `check-lockfile`, or `npm ci`), and the last
+          few lines of the error; (2) that `extension/node_modules` may be
+          missing or incomplete, so the user must fix the cause and run
+          `make ext-install`; and (3) if timed out, that the user must verify
+          no `npm` process remains running under `extension/` before
+          reinstalling;
+        - when `make ext-install` was denied: that it did not run because
+          permission evaluation denied it or the human denied it at a prompt
+          (with the reason given by permission evaluation, if any), and that
+          `extension/node_modules` remains as it was before `/mergemain`
+          started;
+        - when `make ext-install` succeeded and step 9 restored the branch and
+          work tree (for example after `make ext-check` failed or
+          `push_rejected`): (1) that `make ext-install` ran; and (2) that
+          `extension/node_modules` matches the post-merge lockfile and may
+          differ from the restored branch's lockfile, so the user must re-run
+          `make ext-install` before working on the extension;
+        - when `make ext-install` succeeded and the branch was not restored
+          (for example `push_unknown` or step 9 overrode the stop reason to
+          `ほかの変更があり戻さなかった`): that `make ext-install` ran.
     - **When `解消した`:**
       - **変更したファイルと適用した規則**: for each file `/mergemain` modified
         (every conflicted file and every file modified by a take-in rule), state
         the rule applied (`README`・`ADR`・`プロトコル番号`・`両側の変更を保つ`)
         and a concise summary of how it was resolved, or `なし` if none.
+      - **拡張の依存**: state whether `make ext-install` was run.
       - **新しい head**: the pushed `new_head` commit ID.
       - **道具の入れ直し案内** (when any `protocol_tool:` line was reported):
         list each tool whose protocol number changed and state that the user
