@@ -16,7 +16,7 @@
 
 - **既存の前例への統一:** `cmd/yt2column/deadcode_test.go:210,680`（コミット `5bba819a`）と同じく、子プロセス（`bash`・`make`）に渡すリポジトリ内のファイルを Go のテストプロセス自身でも `os.ReadFile` で開くことで、Go のテストキャッシュ（`GOCACHE`）のキーに確実に含める。
 - **共通ヘルパーへの集約:** 個別のテスト関数ではなく、子プロセスを起動する共通のテストヘルパー内で対象ファイルを読む。これにより、同じヘルパーを使う既存テストと今後追加されるテストの両方で書き忘れを防ぐ。
-- **CI との二重防御:** テストプロセス側でのファイル読み込みに加え、`.github/workflows/ci.yml` の `doc-guard` ジョブに `-count=1` を付与し、`actions/setup-go` が復元したキャッシュの再利用を防ぐ。さらに既存のワークフロー検証テスト（`internal/ciskip/workflow_pin_test.go`）で `-count=1` の存在を固定する。
+- **CI との二重防御:** テストプロセス側でのファイル読み込みに加え、`.github/workflows/ci.yml` の `doc-guard` ジョブに `-count=1` を付与し、`actions/setup-go` のキャッシュ（将来 `go.sum` 等が加わった際に復元されうる `GOCACHE`）の再利用を防ぐ。さらに既存のワークフロー検証テスト（`internal/ciskip/workflow_pin_test.go`）で `-count=1` の存在を固定する。
 - **YAGNI・最小変更:** 新しいパッケージや外部依存を追加せず、既存の 4 パッケージのテストヘルパー／テストと `.github/workflows/ci.yml` のみで完結させる。
 
 ### 1.2. 設計の際に決めたこと（2026-11-28）
@@ -33,7 +33,7 @@
 
 ### 1.3. 概念モデル
 
-Go の `go test` キャッシュはテストプロセス自身の `os.Open` 呼び出し（`testlog` の `open` 記録）を追跡し、子プロセスが開いたファイルは追跡しない。本設計では、子プロセスを起動するテストヘルパーの入口で対象ファイル（シェルスクリプトまたは `Makefile`）を Go プロセス自身が開くことで、ファイル内容のハッシュを Go テストキャッシュのキーに組み込む。CI の `doc-guard` ジョブではさらに `-count=1` を指定してキャッシュ参照自体を無効化する。
+Go の `go test` キャッシュはテストプロセス自身の `os.Open` 呼び出し（`testlog` の `open` 記録）を追跡し、子プロセスが開いたファイルは追跡しない。本設計では、子プロセスを起動するテストヘルパーの入口で対象ファイル（シェルスクリプトまたは `Makefile`）を Go プロセス自身が開くことで、対象ファイルの状態（サイズ・更新時刻等の属性）を Go テストキャッシュの検証対象に組み込む。CI の `doc-guard` ジョブではさらに `-count=1` を指定してキャッシュ参照自体を無効化する。
 
 （簡易な進め方のため Mermaid 図は省略する。）
 
@@ -105,7 +105,7 @@ N/A（`01_requirements.md` §4.2 のとおり、`docs/dev/security.md` の適用
 ### 7.1. ユニットテスト
 
 - **キャッシュキー登録テスト（`-test.testlogfile`）:** 4 パッケージ（`cmd/yt2column`・`internal/chief`・`internal/ciskip`・`internal/maketestutil`）それぞれに、各ヘルパー／テストが対象スクリプトまたは `Makefile` を Go の `testlog` に `open` 記録することを確かめるテストを追加する。`cmd/yt2column` の `makeDryRun` と `recipeStub.command` はそれぞれ別の子プロセス・別のログファイルで検証する。`internal/chief` のテストは `TestMarkerReadingMatchesDecisionScript` と同じく直列トップレベルテストとして実行して並列テストの `flock` 継承問題（`internal/chief/markers_parity_test.go:44-49`）を避け、§6.2 のとおり子プロセスに `testToolsDir` と `testBash` を含む `PATH` を渡す。
-- **`doc-guard` ワークフローガードテスト:** `internal/ciskip/workflow_pin_test.go` で `.github/workflows/ci.yml` の `doc-guard` ジョブの `go test` ステップを検索し、トークン単位（`strings.Fields`）で `-count=1` が含まれること、および `go test` ステップが 1 件以上存在すること（空振りによる偽陽性防止）を確かめる。
+- **`doc-guard` ワークフローガードテスト:** `internal/ciskip/workflow_pin_test.go` で `.github/workflows/ci.yml` の `doc-guard` ジョブの `go test` ステップを検索し、行内コメント（`#` 以降）を除いたコマンド文字列をトークン単位（`strings.Fields`）で解析して、すべての `go test` 実行コマンドに引数として `-count=1` が含まれること、および `go test` ステップが 1 件以上存在すること（空振りによる偽陽性防止）を確かめる。
 
 ### 7.2. 統合テスト・壊し確認
 

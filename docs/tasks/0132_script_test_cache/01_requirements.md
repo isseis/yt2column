@@ -24,7 +24,7 @@ Go のテストキャッシュ（`go test`）は、テストプロセス自身�
 
 たとえば `cmd/yt2column/test_helpers_gitfixture.go:163`（`(*gitFixture).runScript`）はスクリプトのパスを `bash` に渡すだけで Go プロセス側では開いていないため、`.claude/commands/_lib/high-review-decision.sh` の末尾に `exit 3` を足しても `go test -tags test -run '^TestHighReviewDecision$' ./cmd/yt2column` が `(cached)` で PASS する。同じ問題は `cmd/yt2column/deadcode_test.go:210,680` が `Makefile` について既に `os.ReadFile` で回避している。
 
-また CI（`.github/workflows/ci.yml:277-291`、コミット `5bba819a`）では、`.claude/` 配下だけの変更は `check-changes`（`.github/workflows/ci.yml:49` および `internal/ciskip/git.go:199`）でコード以外の変更と判定されるため、`-count=1` 付きの `test` ジョブは走らず `doc-guard` ジョブだけが走る。`doc-guard` は `actions/setup-go@v6`（`cache: true`）で `GOCACHE` を復元する一方、実行コマンドに `-count=1` が付いていないため、キャッシュ復元により同じ穴が CI にも現れうる。
+また CI（`.github/workflows/ci.yml:277-291`、コミット `5bba819a`）では、`.claude/` 配下だけの変更は `check-changes`（`.github/workflows/ci.yml:49` および `internal/ciskip/git.go:199`）でコード以外の変更と判定されるため、`-count=1` 付きの `test` ジョブは走らず `doc-guard` ジョブだけが走る。`doc-guard` は `actions/setup-go@v6`（`cache: true`）を使っている。現時点（`5bba819a`）ではリポジトリに `go.sum` がなく `cache-dependency-path` も未指定のためキャッシュ復元は走らない（[ADR-0054](../../dev/adr/0054-ci-skip-doc-only-commit.md) でも `GOCACHE` が空の状態からの実行を前提としている）が、将来 `go.sum` または `cache-dependency-path` が加わると `GOCACHE` が復元されるようになり、`-count=1` がない `doc-guard` では同じ穴が CI に現れうる。
 
 **本書で決めること／`02_architecture.md` に委ねること:**
 
@@ -40,14 +40,14 @@ Go のテストキャッシュ（`go test`）は、テストプロセス自身�
 ### 要件定義の際に決めたこと（2026-11-28）
 
 1. 進め方（プロセス）を簡易な進め方（`simple`）にする。
-   - 理由：影響範囲がテストヘルパー／テスト（4 パッケージ）と `.github/workflows/ci.yml` の `doc-guard` 1 行に収まり、既存の前例（`deadcode_test.go` の `os.ReadFile`）の横展開で新しい仕組みを作らず、既存 ADR の決定も変更しないため。
+   - 理由：影響範囲がテストヘルパー／テスト（4 パッケージ）と `.github/workflows/ci.yml` の `doc-guard` 1 行およびその引用箇所（`CLAUDE.md:959`）に収まり、既存の前例（`deadcode_test.go` の `os.ReadFile`）の横展開で新しい仕組みを作らず、既存 ADR の決定も変更しないため。
    - 除外条件の判定：該当しない（`docs/dev/security.md` の規則・前提および ADR-0006 を変更せず、開発ツールの信頼境界である ADR-0015 を変更せず、外部依存や CI アクションの追加・変更も行わないため）。除外判定の上書きなし。
    - ADR：なし（進め方の選択はタスク固有の記録であり、`01_requirements.md` の `Process` 行に記録する）。
 2. キャッシュキー修正の対象を、シェルスクリプト実行系 3 系統（`cmd/yt2column`・`internal/chief`・`internal/ciskip`）と `Makefile` 実行系（`internal/maketestutil`・`cmd/yt2column/makefile_test.go`）のすべてとする。
    - 理由：issue #1205 の「子プロセスにリポジトリ内のファイルを渡すほかのテスト」を漏れなく閉じ、`deadcode_test.go` 以外の `Makefile` 実行テストでも単独変更時のキャッシュ漏れをなくすため。
    - ADR：なし（個別タスク内のテストキャッシュ修正であり、他タスクやコンポーネント境界を縛る主要決定ではない）。
-3. CI の `.github/workflows/ci.yml` の `doc-guard` ジョブの `go test` コマンドに `-count=1` を追加し、その存在を自動テスト（ガードテスト）で固定する。
-   - 理由：`doc-guard` は `actions/setup-go@v6`（`cache: true`）で `GOCACHE`（テストキャッシュを含む）を復元するため、`Makefile:97-100` の `test-ci` と同様にキャッシュ済みの PASS の再利用を防ぐ必要がある。あわせて、将来の `ci.yml` 編集で `-count=1` が誤って落ちるのを防ぐため、`make test` に含まれる自動テストで固定する。
+3. CI の `.github/workflows/ci.yml` の `doc-guard` ジョブの `go test` コマンドに `-count=1` を追加し、`CLAUDE.md:959` の引用も揃えたうえで、その存在を自動テスト（ガードテスト）で固定する。
+   - 理由：`doc-guard` は `actions/setup-go@v6`（`cache: true`）を使っており、現時点では `go.sum` 不在により復元されないものの、将来 `go.sum` または `cache-dependency-path` が加わった際に `GOCACHE` からテスト結果が復元されうる。`Makefile:97-100` の `test-ci` と方針を揃えてあらかじめキャッシュ済みの PASS の再利用を防ぎ、将来の `ci.yml` 編集で `-count=1` が誤って落ちないよう `make test` に含まれる自動テストで固定する。あわせて `ADR-0016` が `ci.yml` と並ぶ正本としている `CLAUDE.md:959` のコマンド引用も同期する。
    - ADR：なし（`ADR-0016` は `doc-guard` を全 PR で実行する方針と対象パッケージを定めており、`-count=1` の追加とガードテストによる固定はその決定を変更しない）。
 
 ## 2. 目的とスコープ (Goals and Scope)
@@ -70,7 +70,7 @@ Go のテストキャッシュ（`go test`）は、テストプロセス自身�
 | 要確認：他テスト（`internal/ciskip`） | `internal/ciskip/test_helpers.go:145`（`runners`）・`internal/ciskip/git_test.go:654` → `internal/ciskip/git.go:210` | `extension/scripts/has-extension-changes.sh` | 該当 | `internal/ciskip` の実スクリプトランナー生成ヘルパーで対象スクリプトを Go プロセスで読む |
 | 要確認：他テスト（`Makefile` 実行系） | `internal/maketestutil/make.go:106`（`RunTarget`）・`cmd/yt2column/makefile_test.go:215,415`（`makeDryRun`・`recipeStub.command`） | `Makefile` | 該当 | 各ヘルパーで対象ディレクトリの `Makefile` を Go プロセスで読む |
 | 要確認：他テスト（既に対処済み・非該当） | `cmd/yt2column/deadcode_test.go:210,680`（`Makefile` 読み込み済み）、`cmd/yt2column/fixpr_docs_test.go:240`・`cmd/fixprguard/docs_test.go:781`・`internal/ciskip/workflow_pin_test.go:709,909`（対象文書を Go プロセスで読み込み済み）、`os.Args[0]` 再実行系・`t.TempDir()` 内一時ファイル実行系 | — | 非該当 | 変更不要 |
-| 要確認：CI `doc-guard` | `.github/workflows/ci.yml:284-291` | `doc-guard` の `go test` | 該当（`actions/setup-go@v6` の `cache: true` で `GOCACHE` が復元されうる） | `go test` に `-count=1` を追加し、ガードテストで固定する |
+| 要確認：CI `doc-guard` | `.github/workflows/ci.yml:284-291`・`CLAUDE.md:959` | `doc-guard` の `go test` とその引用 | 条件付き該当（`cache: true` は有効だが現時点では `go.sum` 不在で未復元。将来 `go.sum` 等が加わると復元されうる） | `go test` に `-count=1` を追加し、`CLAUDE.md:959` の引用を更新し、ガードテストで固定する |
 
 ### 2.3. スコープ外 (Out of Scope)
 

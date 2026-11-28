@@ -85,7 +85,7 @@
 - **作業内容**:
   - [ ] `.github/workflows/ci.yml` の `doc-guard` ジョブ（`Run documentation sync guards` ステップ）の `go test` コマンドに `-count=1` を追加する。
   - [ ] `CLAUDE.md:959` の `doc-guard` 実行コマンドの引用を `go test -tags test -count=1 ./cmd/yt2column ./cmd/fixprguard ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief` に更新する。
-  - [ ] `internal/ciskip/workflow_pin_test.go` に `TestWorkflowDocGuardDisablesCache` を追加し、`doc-guard` ジョブに `go test` を実行するステップが 1 件以上存在し、そのコマンドにトークンとして `-count=1` が含まれることを確かめる。
+  - [ ] `internal/ciskip/workflow_pin_test.go` に `TestWorkflowDocGuardDisablesCache` を追加し、`doc-guard` ジョブに `go test` を実行するステップが 1 件以上存在し、行内コメント（`#` 以降）を除いたすべての `go test` コマンドに引数トークンとして `-count=1` が含まれることを確かめる。
 - **完了条件**: `go test -tags test -count=1 ./internal/ciskip` が成功する。
 
 #### ステップ 1-6: 壊し確認と全体検証
@@ -110,9 +110,9 @@
 
 本計画は単一フェーズ（ステップ 1-1〜1-6）であり、PR 境界マーカーは設けず 1 本の実装 PR で完結させる。
 
-**実装モデル要件**: low
+**実装モデル要件**: standard+high-review
 
-**判定理由**: high および standard+high-review のいずれの判定基準にも該当しないため。
+**判定理由**: ステップ 1-4 が 2 つの Conditional checks（`_test.go` 以外のヘルパーへの限定 `//nolint:gosec` 付与と、`TestMain` の起動検証を再実行する `os.Args[0]` 子プロセス起動）に該当し、ステップ 1-3 も `isolateTestPath` の `PATH` 復元と `flock` 継承による並列テスト間欠失敗リスクを持つため。上位モデル未満で実装すると `TestMain` 前提の `PATH` 復元や `//nolint:gosec` の範囲漏れ、あるいは並列テスト干渉を見落とすおそれがある。
 
 **自動送信**: auto
 
