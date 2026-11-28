@@ -77,7 +77,7 @@
         - 2 乗の壊し方で、`YT2COLUMN_TEST_TIMING=1 go test -tags test -race -count=1 -timeout 30m -run '^TestNeutralizedDisplayMarkdownLinearTime$' ./internal/publisher` が通ること（AC-01）
         - 2 乗の壊し方で、`go test -tags test -count=1 -run '^TestNeutralizedDisplayMarkdownLinearTime$' ./internal/publisher`（環境変数なし）が通ること（AC-04）
         - 2 乗の壊し方で、`YT2COLUMN_TEST_TIMING=1 go test -tags test -count=1 -run '^TestNeutralizedDisplayMarkdownLinearTime$' ./internal/publisher` が時間比で失敗すること（AC-03 の判定そのもの）
-        - 壊し方なしで、`YT2COLUMN_TEST_TIMING=2 go test -tags test -count=1 -run '^TestNeutralizedDisplayMarkdownLinearTime$' ./internal/publisher` が値の確認で失敗すること（AC-04）
+        - 壊し方なしで、`YT2COLUMN_TEST_TIMING=2 go test -tags test -count=1 -run '^TestNeutralizedDisplayMarkdownLinearTime$' ./internal/publisher` と、同じコマンドに `-race` を加えた実行が、どちらも値の確認で失敗すること（AC-04）
         - `NeutralizedDisplayMarkdown`（`internal/publisher/display_render.go:28`）が、U+200B を挿入しても `Neutralized` を偽にして返すように壊し、`go test -tags test -race -count=1 -run '^TestNeutralizedDisplayMarkdownLinearTime$' ./internal/publisher` が契約の確認で失敗すること（AC-02）
     - 壊し方とその結果をコミットメッセージに書く
     - 完了の条件: 両方のビルドで、環境変数なしと `1` のどちらでもテストが通り、コミットメッセージに壊し方の記録がある
