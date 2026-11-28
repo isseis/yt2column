@@ -506,15 +506,12 @@ PR-4 は製品を変えない。
     -   `measure`: PR-4 を作る前（ステップ 4-5）。`/runplan` の実行者が行う。
 -   **破壊の確かめの時期:** `estimate`・`names`・`unchanged`・`race` はステップ 1-1、`measure` はステップ 4-5（前の木と後の木が違うとき）。`names` は、時間の行を足したステップ 3-1 でやり直す。
 -   **テスト:** コミットしない。
--   **破壊の記録:** 対象コミット `d05bf0313787ccc59c7e739247e53e7e16f369d0`（初回 `e2a5e8494c0b84e0fee6c38851cb5e70cc9b5c78` の後、レビュー修正に合わせて再確認）
-    -   `unchanged`: `internal/fixprguard/types.go` の `const Protocol = 9` を `10` に書き換えて実行し、終了コード 1（`protocol=FAIL`）で失敗することを確認した。同様に `docs/dev/guides/fixprguard_guide.md` に変更を加えて実行し、終了コード 1（`guide=FAIL`）で失敗することを確認した。
-    -   `race`: `internal/fixprguard/changes_test.go` の `TestParseJudgedSetID` に一時的に `panic` を入れて実行し、終了コード 1（`go test failed`）で失敗することを確認した。
-    -   `names`: `internal/fixprguard/changes_test.go` の `TestParseJudgedSetID` に一時的に `t.Skip` を入れて実行し、終了コード 1（`missing=1`, `became_skip=1`, `status=FAIL`）で失敗することを確認した。
-    -   `estimate`: `GOMAXPROCS=1` を指定して並列度を 1 に下げた前提の破壊で実行し、両パッケージとも下限が 50% を超えて終了コード 1（`status=FAIL`）で失敗することを確認した。
--   **破壊の記録（`names` のやり直し）:** 対象コミット `7b77d80cd9e56e1dd13791c166a1398171a10bbf`（ステップ 3-1 で時間の行を足した後）
-    -   `names`: `internal/fixprguard/changes_test.go` の `TestParseJudgedSetID` に一時的に `t.Skip` を入れ、`names 7b77d80cd9e56e1dd13791c166a1398171a10bbf` を実行し、終了コード 1（`missing=1`, `became_skip=1`, `status=FAIL`）で失敗することを確認した。2 つの木のパッケージの時間の行（`elapsed <パッケージ> base=… head=…`）が出ることも確認した。戻して作業ツリーがきれいなことを確認した。
--   **破壊の記録（`measure`）:** 対象コミット `35977d6fda089ed353331f1fa34c4e7cda356d07`（ステップ 4-5 で `measure` の閾値を 0.6 に合わせた後。変更前の `bfd67b0bfaff901f6089a3b46f3ce1703a3e21d7` でも同様に確認済み）
-    -   `measure`: `gotest.sh measure HEAD`（短縮なしの前後同一コミット比較）を実行し、`internal/fixprguard` が `ratio_pct=88.16%`（`status=FAIL`）、`cmd/fixprguard` が `ratio_pct=97.9%`（`status=FAIL`）、終了コード 1 で失敗することを確認した（`estimate`・`names`・`unchanged`・`race` の処理は変更していない）。
+-   **破壊の記録:** 対象コミット `35977d6fda089ed353331f1fa34c4e7cda356d07`（ステップ 4-5 で `measure` の閾値を 0.6 に合わせた後の最新の `_checks/gotest.sh` に対する統一記録。再現可能な 4 つのモードをやり直し、`estimate` は実行条件が実装前のためやり直せない旨を記録する）
+    -   `unchanged`: `48ee610c8c9595c70ba320aa33a760a68647f3c7` 上で `internal/fixprguard/types.go` の `const Protocol = 9` を `10` に、`docs/dev/guides/fixprguard_guide.md` の先頭行に一時的な変更を加えて `gotest.sh unchanged e086fee14de69eec4fa71168927d59baa8e36782` を実行し、終了コード 1（`guide=FAIL`, `protocol=FAIL`, `status=FAIL`）で失敗することを確認した。戻して作業ツリーがきれいなことを確認した。
+    -   `race`: `48ee610c8c9595c70ba320aa33a760a68647f3c7` 上で `internal/fixprguard/changes_test.go` の `TestEnumerateChanges` に一時的に `panic("break")` を入れて実行し、終了コード 1（`go test failed`）で失敗することを確認した。戻して作業ツリーがきれいなことを確認した。
+    -   `names`: `48ee610c8c9595c70ba320aa33a760a68647f3c7` 上で `internal/fixprguard/changes_test.go` の `TestEnumerateChanges` に一時的に `t.Skip("break")` を入れて `gotest.sh names 48ee610c8c9595c70ba320aa33a760a68647f3c7` を実行し、終了コード 1（`missing=2`, `became_skip=1`, `status=FAIL`）で失敗することと、2 つの木のパッケージの時間の行（`elapsed <パッケージ> base=… head=…`）が出ることを確認した。戻して作業ツリーがきれいなことを確認した。
+    -   `measure`: `gotest.sh measure HEAD`（短縮なしの前後同一コミット比較）を実行し、`internal/fixprguard` が `ratio_pct=88.16%`（`status=FAIL`）、`cmd/fixprguard` が `ratio_pct=97.9%`（`status=FAIL`）、終了コード 1 で失敗することを確認した。
+    -   `estimate`: 実行条件が実装前（ステップ 1-1）であり、PR-1〜PR-4 の実装後の木ではやり直せない。ステップ 1-1（対象コミット `d05bf0313787ccc59c7e739247e53e7e16f369d0`）で `GOMAXPROCS=1` により並列度を 1 に下げた前提の破壊で両パッケージとも 50% を超えて終了コード 1（`status=FAIL`）で失敗することを確認済みであり、`35977d6fda089ed353331f1fa34c4e7cda356d07` では `estimate` の処理を変更していない。
 -   **実行の記録:**
     -   `estimate`（対象コミット `d05bf0313787ccc59c7e739247e53e7e16f369d0`、判定対象 `origin/main` = `fb71447bb8bd1baa47e113573db52939b41146cd`、両パッケージとも 50% 以下で `PASS`）:
 
@@ -555,11 +552,11 @@ PR-4 は製品を変えない。
         cpu14=PASS
         ```
 
-    -   `race`（ステップ 4-5、ひな形コピー・テスト追加後、対象コミット `bfd67b0bfaff901f6089a3b46f3ce1703a3e21d7`）:
+    -   `race`（ステップ 4-5、ひな形コピー・テスト追加・レビュー修正後、対象コミット `48ee610c8c9595c70ba320aa33a760a68647f3c7`）:
 
         ```text
         mode=race
-        head=bfd67b0bfaff901f6089a3b46f3ce1703a3e21d7
+        head=48ee610c8c9595c70ba320aa33a760a68647f3c7
         count3=PASS
         cpu14=PASS
         ```
@@ -594,13 +591,13 @@ PR-4 は製品を変えない。
         testshape env-source: PASS
         ```
 
-    -   `parallel`・`process-state`・`env-source`・`fixture-git`（PR-4。対象コミット `bfd67b0bfaff901f6089a3b46f3ce1703a3e21d7`）:
+    -   `parallel`・`process-state`・`env-source`・`fixture-git`（PR-4。対象コミット `48ee610c8c9595c70ba320aa33a760a68647f3c7`）:
 
         ```text
         testshape parallel: PASS
         testshape process-state: PASS
         testshape env-source: PASS
-        before=54b8299393190b3ed19c41031a12868209133c80 head=bfd67b0bfaff901f6089a3b46f3ce1703a3e21d7
+        before=54b8299393190b3ed19c41031a12868209133c80 head=48ee610c8c9595c70ba320aa33a760a68647f3c7
         package=internal/fixprguard before_newTestRepo=13 buildTestRepo=13 after_newTestRepo=1
         package=cmd/fixprguard before_newTestRepo=12 buildTestRepo=12 after_newTestRepo=1
         testshape fixture-git: PASS
@@ -815,12 +812,12 @@ PR-4 は製品を変えない。
         status=FAIL
         ```
 -   **PR-4:**
-    -   AC-09（比較: `e086fee14de69eec4fa71168927d59baa8e36782` → `bfd67b0bfaff901f6089a3b46f3ce1703a3e21d7`）:
+    -   AC-09（比較: `e086fee14de69eec4fa71168927d59baa8e36782` → `48ee610c8c9595c70ba320aa33a760a68647f3c7`）:
 
         ```text
         mode=unchanged
         base=e086fee14de69eec4fa71168927d59baa8e36782
-        head=bfd67b0bfaff901f6089a3b46f3ce1703a3e21d7
+        head=48ee610c8c9595c70ba320aa33a760a68647f3c7
         guide=PASS (docs/dev/guides/fixprguard_guide.md)
         protocol=PASS (base: const Protocol = 9 | head: const Protocol = 9 | worktree: const Protocol = 9)
         status=PASS
@@ -851,7 +848,7 @@ PR-4 は製品を変えない。
           status=FAIL
         ```
 
-    -   AC-12（2 回目・60% 基準、判定に使った 3 回。比較: `54b8299393190b3ed19c41031a12868209133c80` → `35977d6fda089ed353331f1fa34c4e7cda356d07`。両パッケージ `PASS`）:
+    -   AC-12（2 回目・60% 基準、レビュー修正前。比較: `54b8299393190b3ed19c41031a12868209133c80` → `35977d6fda089ed353331f1fa34c4e7cda356d07`。両パッケージ `PASS`）:
 
         ```text
         mode=measure
@@ -876,16 +873,41 @@ PR-4 は製品を変えない。
           status=PASS
         ```
 
-    -   AC-15（比較: `e086fee14de69eec4fa71168927d59baa8e36782` → `bfd67b0bfaff901f6089a3b46f3ce1703a3e21d7`）:
+    -   AC-12（3 回目・60% 基準、レビュー修正後、判定に使った 3 回。比較: `54b8299393190b3ed19c41031a12868209133c80` → `48ee610c8c9595c70ba320aa33a760a68647f3c7`。両パッケージ `PASS`）:
+
+        ```text
+        mode=measure
+        before=54b8299393190b3ed19c41031a12868209133c80
+        head=48ee610c8c9595c70ba320aa33a760a68647f3c7
+        os=Darwin 25.6.0 arm64
+        cores=12 gomaxprocs=12
+        go=go version go1.27.1 darwin/arm64
+        package=github.com/isseis/yt2column/internal/fixprguard
+          before_runs=150.521s, 150.196s, 153.222s
+          before_median=150.521s
+          after_runs=52.026s, 47.492s, 49.911s
+          after_median=49.911s
+          ratio_pct=33.16%
+          status=PASS
+        package=github.com/isseis/yt2column/cmd/fixprguard
+          before_runs=24.992s, 23.852s, 23.959s
+          before_median=23.959s
+          after_runs=13.628s, 13.676s, 13.062s
+          after_median=13.628s
+          ratio_pct=56.88%
+          status=PASS
+        ```
+
+    -   AC-15（比較: `e086fee14de69eec4fa71168927d59baa8e36782` → `48ee610c8c9595c70ba320aa33a760a68647f3c7`）:
 
         ```text
         mode=names
         base=e086fee14de69eec4fa71168927d59baa8e36782
-        head=bfd67b0bfaff901f6089a3b46f3ce1703a3e21d7
+        head=48ee610c8c9595c70ba320aa33a760a68647f3c7
         base_pass=1793
         head_pass=1797
-        elapsed github.com/isseis/yt2column/internal/fixprguard base=199.087s head=65.834s
-        elapsed github.com/isseis/yt2column/cmd/fixprguard base=61.551s head=41.89s
+        elapsed github.com/isseis/yt2column/internal/fixprguard base=306.638s head=65.842s
+        elapsed github.com/isseis/yt2column/cmd/fixprguard base=91.823s head=30.21s
         missing=0
         became_skip=0
         added=4
