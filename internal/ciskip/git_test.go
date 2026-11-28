@@ -652,9 +652,7 @@ func (r *recordingInputRunner) RunInput(ctx context.Context, stdin []byte, name 
 // (code 2) rather than timing out on a full stdin pipe. The ProcessGroup=false runner setting
 // itself is pinned by TestRunnerOptions.
 func TestCheckExtensionChangesEarlyExitNoDeadlock(t *testing.T) {
-	_, scriptOpts, _ := runnerOptions(os.Environ(), defaultLimits())
-	scriptOpts.Dir = filepath.Join("..", "..")
-	rec := &recordingInputRunner{inner: cmdrunner.NewOS(scriptOpts)}
+	rec := &recordingInputRunner{inner: newRealScriptRunner(t)}
 
 	// Invalid line (no trailing "/") forces has-extension-changes.sh to exit 2
 	// before entering the stdin read loop.

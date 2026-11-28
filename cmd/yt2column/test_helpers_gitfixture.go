@@ -169,6 +169,12 @@ func (f *gitFixture) runScript(bash scriptBash, script string, args []string, op
 	if err != nil {
 		f.t.Fatalf("resolve the script path: %v", err)
 	}
+	// Read the script from this process before running bash: a file the test
+	// process opens is part of the test's cache key, so editing the script
+	// alone cannot leave a cached PASS behind.
+	if _, err := os.ReadFile(abs); err != nil { //nolint:gosec // test helper reads the test-chosen repository script
+		f.t.Fatalf("read script %s: %v", script, err)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, bash.path, append([]string{abs}, args...)...) //nolint:gosec // bash with the test's script

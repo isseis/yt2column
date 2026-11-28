@@ -140,14 +140,31 @@ func (r *testGitRepo) setOriginMain(oid string) {
 	r.git("update-ref", "refs/remotes/origin/main", oid)
 }
 
+// newRealScriptRunner returns a real cmdrunner.InputRunner rooted at the
+// repository root, reading hasExtensionChangesScript from the test process so
+// Go's test cache invalidates when the script changes.
+func newRealScriptRunner(t *testing.T) cmdrunner.InputRunner {
+	t.Helper()
+	repoRoot := filepath.Join("..", "..")
+	// Read the script from this process before running bash: a file the test
+	// process opens is part of the test's cache key, so editing the script
+	// alone cannot leave a cached PASS behind.
+	scriptPath := filepath.Join(repoRoot, filepath.FromSlash(hasExtensionChangesScript))
+	if _, err := os.ReadFile(scriptPath); err != nil { //nolint:gosec // test helper reads the fixed repository script path
+		t.Fatalf("read %s: %v", hasExtensionChangesScript, err)
+	}
+	_, scriptOpts, _ := runnerOptions(os.Environ(), defaultLimits())
+	scriptOpts.Dir = repoRoot
+	return cmdrunner.NewOS(scriptOpts)
+}
+
 // runners returns real cmdrunner instances: git pointed at r.dir and script pointed
 // at the repository root (two levels above internal/ciskip).
 func (r *testGitRepo) runners() (cmdrunner.Runner, cmdrunner.InputRunner) {
 	r.t.Helper()
-	gitOpts, scriptOpts, _ := runnerOptions(os.Environ(), defaultLimits())
+	gitOpts, _, _ := runnerOptions(os.Environ(), defaultLimits())
 	gitOpts.Dir = r.dir
-	scriptOpts.Dir = filepath.Join("..", "..")
-	return cmdrunner.NewOS(gitOpts), cmdrunner.NewOS(scriptOpts)
+	return cmdrunner.NewOS(gitOpts), newRealScriptRunner(r.t)
 }
 
 // ghAPIArgs builds the full argument list ghAPIGet passes to cmdrunner.Runner.

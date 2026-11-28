@@ -105,6 +105,12 @@ type MakeInvocation struct {
 // must be a plain shell variable name.
 func RunTarget(t *testing.T, root, target string, base, extra []string, set map[string]string) (string, MakeInvocation) {
 	t.Helper()
+	// Read the Makefile from this process before running make: a file the test
+	// process opens is part of the test's cache key, so editing the Makefile
+	// alone cannot leave a cached PASS behind.
+	if _, err := os.ReadFile(filepath.Join(root, "Makefile")); err != nil { //nolint:gosec // test helper reads the Makefile in the test-chosen directory
+		t.Fatalf("read Makefile: %v", err)
+	}
 	record, err := RecordedNames(base, extra)
 	if err != nil {
 		t.Fatal(err)
