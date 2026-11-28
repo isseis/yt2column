@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-28 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-28 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 実装概要 (Implementation Overview)
@@ -163,3 +163,7 @@
 
 1. 本 3 文書 PR のレビューと `/runpr` での承認・マージを受ける。
 2. マージ後、`/runplan 0132` でフェーズ 1 を実装し、実装 PR を開く。
+
+## 変更履歴
+
+- 2026-11-28 承認（isseis、#1211）

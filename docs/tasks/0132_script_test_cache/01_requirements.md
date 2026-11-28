@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `simple` |
 | Created | 2026-11-28 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-28 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -148,3 +148,7 @@ Go のテストキャッシュ（`go test`）は、テストプロセス自身�
 - **テストキャッシュ（Go test cache）**: `go test` が `GOCACHE` に保存するパッケージ単位のテスト結果キャッシュ。テストプロセス自身が開いたファイルと環境変数をキャッシュキーに含める。
 - **`doc-guard`**: `.github/workflows/ci.yml` の常時実行ジョブ（表示名 `Documentation guard`）。変更の種類にかかわらずすべての PR で文書・スクリプト関連の Go テストを実行する。
 - **壊し確認**: 確かめの対象を意図的に壊して、テストやガードが失敗することを確かめる手順（`CLAUDE.md`「Testing Strategy」）。
+
+## 変更履歴
+
+- 2026-11-28 承認（isseis、#1211）

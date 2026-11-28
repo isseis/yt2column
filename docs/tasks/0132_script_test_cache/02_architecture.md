@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-28 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-28 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 設計の全体像 (Design Overview)
@@ -126,3 +126,7 @@ N/A（§5 のとおりセキュリティ要件の対象外）。
 
 - [#1181](https://github.com/isseis/yt2column/issues/1181) で開発ツール系テストを `cmd/yt2column` から別パッケージへ分離する際も、`runScript` を移動先の共通ヘルパーとして引き継ぐだけでキャッシュキー登録の性質が保たれる。
 - 今後新たにリポジトリ内のスクリプトや設定ファイルを子プロセスへ渡すテストを追加する場合は、既存の共通ヘルパー（`runScript`・`maketestutil.RunTarget`・`newRealScriptRunner`）を経由するか、同様に Go プロセスで `os.ReadFile` してから子プロセスを起動する。
+
+## 変更履歴
+
+- 2026-11-28 承認（isseis、#1211）
