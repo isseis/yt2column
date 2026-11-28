@@ -113,6 +113,37 @@ func TestFixtureTemplateEquivalence(t *testing.T) {
 
 	// 7. home files: list, perm, content.
 	compareDirTree(t, "home", freshHome, copyHome, "", "", false, nil, func(string) bool { return true })
+
+	// 8. No copied file (reflogs and remote.git/config included) still names the
+	// template root: only the two rewritten config values may hold a root path.
+	assertNoTemplateRoot(t, copyRoot, isolation.TemplateRoot)
+}
+
+// assertNoTemplateRoot fails when any regular file under root contains the
+// bytes of templateRoot.
+func assertNoTemplateRoot(t *testing.T, root, templateRoot string) {
+	t.Helper()
+	needle := []byte(templateRoot)
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.Type().IsRegular() {
+			return nil
+		}
+		data, err := os.ReadFile(path) //nolint:gosec // reads a file inside the test's temporary fixture copy
+		if err != nil {
+			return err
+		}
+		if bytes.Contains(data, needle) {
+			rel, _ := filepath.Rel(root, path)
+			t.Errorf("copied file %s contains the template root %q", rel, templateRoot)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk %s: %v", root, err)
+	}
 }
 
 func TestFixtureTemplateIsolation(t *testing.T) {
