@@ -24,7 +24,7 @@ Go のテストキャッシュ（`go test`）は、テストプロセス自身�
 
 たとえば `cmd/yt2column/test_helpers_gitfixture.go:163`（`(*gitFixture).runScript`）はスクリプトのパスを `bash` に渡すだけで Go プロセス側では開いていないため、`.claude/commands/_lib/high-review-decision.sh` の末尾に `exit 3` を足しても `go test -tags test -run '^TestHighReviewDecision$' ./cmd/yt2column` が `(cached)` で PASS する。同じ問題は `cmd/yt2column/deadcode_test.go:210,680` が `Makefile` について既に `os.ReadFile` で回避している。
 
-また CI（`.github/workflows/ci.yml:277-291`、コミット `5bba819a`）では、`.claude/` 配下だけの変更は `check-changes`（`.github/workflows/ci.yml:49` および `internal/ciskip/git.go:199`）でコード以外の変更と判定されるため、`-count=1` 付きの `test` ジョブは走らず `doc-guard` ジョブだけが走る。`doc-guard` は `actions/setup-go@v6`（`cache: true`）を使っている。現時点（`5bba819a`）ではリポジトリに `go.sum` がなく `cache-dependency-path` も未指定のためキャッシュ復元は走らない（[ADR-0054](../../dev/adr/0054-ci-skip-doc-only-commit.md) でも `GOCACHE` が空の状態からの実行を前提としている）が、将来 `go.sum` または `cache-dependency-path` が加わると `GOCACHE` が復元されるようになり、`-count=1` がない `doc-guard` では同じ穴が CI に現れうる。
+また CI（`.github/workflows/ci.yml:277-291`、コミット `5bba819a`）では、`.claude/` 配下だけの変更は `check-changes`（`.github/workflows/ci.yml:49` および `internal/ciskip/git.go:199`）でコード以外の変更と判定されるため、`-count=1` 付きの `test` ジョブは走らず `doc-guard` ジョブだけが走る。`doc-guard` は `actions/setup-go@v6`（`cache: true`）を使っている。現時点（`5bba819a`）ではリポジトリに `go.sum` がなく `cache-dependency-path` も未指定のためキャッシュ復元は走らない（[ADR-0054](../../dev/adr/0054-ci-skip-doc-only-commit.md) でも `GOCACHE` が空の状態からの実行を前提としている）が、将来 `go.sum` または `cache-dependency-path` が加わると `GOCACHE` が復元されるようになる。Go のテストキャッシュはテストが開いたファイルのサイズと更新時刻をキーに含め、`actions/checkout` は実行のたびにファイルの更新時刻を新しくするため、復元された PASS がそのまま再利用される経路は現時点では確認されていない。それでも `-count=1` を付ければ、この更新時刻の挙動に頼らずにキャッシュ済みの PASS の再利用を防げる（予防的な措置であり、CI で現に起きている穴の修正ではない）。
 
 **本書で決めること／`02_architecture.md` に委ねること:**
 
@@ -47,7 +47,7 @@ Go のテストキャッシュ（`go test`）は、テストプロセス自身�
    - 理由：issue #1205 の「子プロセスにリポジトリ内のファイルを渡すほかのテスト」を漏れなく閉じ、`deadcode_test.go` 以外の `Makefile` 実行テストでも単独変更時のキャッシュ漏れをなくすため。
    - ADR：なし（個別タスク内のテストキャッシュ修正であり、他タスクやコンポーネント境界を縛る主要決定ではない）。
 3. CI の `.github/workflows/ci.yml` の `doc-guard` ジョブの `go test` コマンドに `-count=1` を追加し、`CLAUDE.md:959` の引用も揃えたうえで、その存在を自動テスト（ガードテスト）で固定する。
-   - 理由：`doc-guard` は `actions/setup-go@v6`（`cache: true`）を使っており、現時点では `go.sum` 不在により復元されないものの、将来 `go.sum` または `cache-dependency-path` が加わった際に `GOCACHE` からテスト結果が復元されうる。`Makefile:97-100` の `test-ci` と方針を揃えてあらかじめキャッシュ済みの PASS の再利用を防ぎ、将来の `ci.yml` 編集で `-count=1` が誤って落ちないよう `make test` に含まれる自動テストで固定する。あわせて `ADR-0016` が `ci.yml` と並ぶ正本としている `CLAUDE.md:959` のコマンド引用も同期する。
+   - 理由：`doc-guard` は `actions/setup-go@v6`（`cache: true`）を使っており、現時点では `go.sum` 不在により復元されないものの、将来 `go.sum` または `cache-dependency-path` が加わった際に `GOCACHE` が復元されうる。復元されても、`actions/checkout` が更新時刻を新しくするため結果は現時点の挙動ではそのまま再利用されないが、その挙動に頼らないための予防として、`Makefile:97-100` の `test-ci` と方針を揃えてあらかじめキャッシュ済みの PASS の再利用を防ぎ、将来の `ci.yml` 編集で `-count=1` が誤って落ちないよう `make test` に含まれる自動テストで固定する。あわせて `ADR-0016` が `ci.yml` と並ぶ正本としている `CLAUDE.md:959` のコマンド引用も同期する。
    - ADR：なし（`ADR-0016` は `doc-guard` を全 PR で実行する方針と対象パッケージを定めており、`-count=1` の追加とガードテストによる固定はその決定を変更しない）。
 
 ## 2. 目的とスコープ (Goals and Scope)

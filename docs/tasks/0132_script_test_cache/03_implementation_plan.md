@@ -93,7 +93,7 @@
 - **対象ファイル**: なし（検証ステップ）
 - **作業内容**:
   - [ ] 修正前コミット（または `os.ReadFile` を一時的に外した状態）で、issue #1205 の手順どおりスクリプトを壊したときに `(cached)` で PASS することを確かめる。
-  - [ ] 修正後の状態で、`review-records.sh`・`high-review-decision.sh`・`adr-correction-candidates.sh`・`has-extension-changes.sh`・`Makefile` のそれぞれについて単独変更（壊し）を行い、対応するテストがキャッシュを使わず再実行されて失敗することを確かめ、変更を元に戻す。
+  - [ ] 修正後の状態で、`review-records.sh`・`high-review-decision.sh`・`adr-correction-candidates.sh`・`has-extension-changes.sh`・`Makefile` のそれぞれについて単独変更（壊し）を行い、対応するテストがキャッシュを使わず再実行されて失敗することを確かめ、変更を元に戻す。`cmd/yt2column` の `Makefile` は、既存の `deadcode_test.go:210,680` が読むためパッケージ全体の実行では修正の有無にかかわらず再実行される。このため `-run` で `makefile_test.go` のテストだけに絞って確かめる（`makeDryRun`・`recipeStub.command` それぞれの読み込みは次の項目と `TestMakeHelpersOpenMakefile` で確かめる）。
   - [ ] 6 箇所（`RunTarget`・`newRealScriptRunner`・`TestMarkerReadingMatchesDecisionScript`・`runScript`・`makeDryRun`・`recipeStub.command`）の `os.ReadFile` をそれぞれ一時的に外し、対応する新しいキャッシュキー登録テストがそれぞれ失敗することを確かめ、元に戻す。
   - [ ] `.github/workflows/ci.yml` の `doc-guard` から `-count=1` を一時的に外したときに `TestWorkflowDocGuardDisablesCache` が失敗することを確かめ、元に戻す。
   - [ ] 壊し確認の結果をコミットメッセージに記録する（`CLAUDE.md`「Testing Strategy」）。
@@ -129,6 +129,7 @@
 |---|---|---|
 | `_test.go` 以外のテストヘルパーの `os.ReadFile` が `gosec`（G304）で失敗する | `make lint` が通らない | 該当行のみに最小限の `//nolint:gosec` とテスト専用ファイルである旨の英語コメントを付け、`make lint` で確認する |
 | `internal/chief` で並列テストから子プロセスを起動すると他テストの `flock` を継承する／`isolateTestPath` が `PATH` を空にする | `cachelock` を使う他テストが間欠的に失敗する、または子テストバイナリの `TestMain` が `git`/`bash` を見つけられず即座に失敗する | `TestMarkerReadingOpensDecisionScript` に `t.Parallel()` を付けず直列実行し（`markers_parity_test.go:44-49`）、`testBash` へのシンボリックリンクを置いた一時ディレクトリと `testToolsDir` を子プロセスの `PATH` に含める（`02_architecture.md` §6.2） |
+| `-test.testlogfile` は `cmd/go` 専用の非公開フラグであり、Go ツールチェーンの更新でログ形式が変わりうる | 4 パッケージのキャッシュキー登録テストが失敗する | 読み取りは `open ` で始まる行の照合だけに絞る。失敗は `t.Fatalf` で表に出るので、そのとき読み取り部分を直すか、壊し確認だけの検証に戻す（`02_architecture.md` §1.2 の 2） |
 | `-test.testlogfile` テストが子プロセスで再帰起動する | テストが無限再帰またはタイムアウトする | 子プロセス起動時に専用環境変数または別名のヘルパーサブテストで分岐し、親のみが子を起動する構造にする |
 
 ## 6. 実装チェックリスト (Implementation Checklist)
