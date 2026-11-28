@@ -13,7 +13,7 @@
 
 ## 1. 概要 (Overview)
 
-**目的:** このドキュメントは、開発用シェルスクリプトや `Makefile` だけを編集したときに `make test` や CI の `doc-guard` がキャッシュ済みの PASS を返してしまう問題を解消するための要件を定義する。
+**目的:** このドキュメントは、開発用シェルスクリプトや `Makefile` だけを編集したときに `make test` や CI の `doc-guard` ジョブ（後述の §6 で定義）がキャッシュ済みの PASS を返してしまう問題を解消するための要件を定義する。
 
 - 対応 issue: [#1205](https://github.com/isseis/yt2column/issues/1205)
 - 関連 issue: [#1181](https://github.com/isseis/yt2column/issues/1181)（開発ツール系テストの分離。分離後に Go のテストキャッシュを信頼して再実行を省くには、本タスクの修正が前提になる）
@@ -24,7 +24,7 @@ Go のテストキャッシュ（`go test`）は、テストプロセス自身�
 
 たとえば `cmd/yt2column/test_helpers_gitfixture.go:163`（`(*gitFixture).runScript`）はスクリプトのパスを `bash` に渡すだけで Go プロセス側では開いていないため、`.claude/commands/_lib/high-review-decision.sh` の末尾に `exit 3` を足しても `go test -tags test -run '^TestHighReviewDecision$' ./cmd/yt2column` が `(cached)` で PASS する。同じ問題は `cmd/yt2column/deadcode_test.go:210,680` が `Makefile` について既に `os.ReadFile` で回避している。
 
-また CI（`.github/workflows/ci.yml:277-291`、コミット `5bba819a`）では、`.claude/` 配下だけの変更は `check-changes`（`.github/workflows/ci.yml:49` および `internal/ciskip/git.go:199`）で non-code と判定されるため、`-count=1` 付きの `test` ジョブは走らず `doc-guard` ジョブだけが走る。`doc-guard` は `actions/setup-go@v6`（`cache: true`）で `GOCACHE` を復元する一方、実行コマンドに `-count=1` が付いていないため、キャッシュ復元により同じ穴が CI にも現れうる。
+また CI（`.github/workflows/ci.yml:277-291`、コミット `5bba819a`）では、`.claude/` 配下だけの変更は `check-changes`（`.github/workflows/ci.yml:49` および `internal/ciskip/git.go:199`）でコード以外の変更と判定されるため、`-count=1` 付きの `test` ジョブは走らず `doc-guard` ジョブだけが走る。`doc-guard` は `actions/setup-go@v6`（`cache: true`）で `GOCACHE` を復元する一方、実行コマンドに `-count=1` が付いていないため、キャッシュ復元により同じ穴が CI にも現れうる。
 
 **本書で決めること／`02_architecture.md` に委ねること:**
 
@@ -39,22 +39,22 @@ Go のテストキャッシュ（`go test`）は、テストプロセス自身�
 
 ### 要件定義の際に決めたこと（2026-11-28）
 
-1. **進め方（プロセス）を簡易な進め方（`simple`）にする。**
-   - 理由：影響範囲がテストヘルパー／テスト（4 パッケージ）と `.github/workflows/ci.yml` の `doc-guard` 1 行に収まり、既存前例（`deadcode_test.go` の `os.ReadFile`）の横展開で新しい仕組みを作らず、既存 ADR の決定も変更しないため。
-   - 除外条件の判定：該当しない（`docs/dev/security.md` の規則・前提および ADR-0006 を変更せず、開発ツールの信頼境界である ADR-0015 を変更せず、外部依存や CI アクションの追加・変更も行わないため）。上書きなし。
+1. 進め方（プロセス）を簡易な進め方（`simple`）にする。
+   - 理由：影響範囲がテストヘルパー／テスト（4 パッケージ）と `.github/workflows/ci.yml` の `doc-guard` 1 行に収まり、既存の前例（`deadcode_test.go` の `os.ReadFile`）の横展開で新しい仕組みを作らず、既存 ADR の決定も変更しないため。
+   - 除外条件の判定：該当しない（`docs/dev/security.md` の規則・前提および ADR-0006 を変更せず、開発ツールの信頼境界である ADR-0015 を変更せず、外部依存や CI アクションの追加・変更も行わないため）。除外判定の上書きなし。
    - ADR：なし（進め方の選択はタスク固有の記録であり、`01_requirements.md` の `Process` 行に記録する）。
-2. **キャッシュキー修正の対象を、シェルスクリプト実行系 3 系統（`cmd/yt2column`・`internal/chief`・`internal/ciskip`）と `Makefile` 実行系（`internal/maketestutil`・`cmd/yt2column/makefile_test.go`）のすべてとする。**
+2. キャッシュキー修正の対象を、シェルスクリプト実行系 3 系統（`cmd/yt2column`・`internal/chief`・`internal/ciskip`）と `Makefile` 実行系（`internal/maketestutil`・`cmd/yt2column/makefile_test.go`）のすべてとする。
    - 理由：issue #1205 の「子プロセスにリポジトリ内のファイルを渡すほかのテスト」を漏れなく閉じ、`deadcode_test.go` 以外の `Makefile` 実行テストでも単独変更時のキャッシュ漏れをなくすため。
    - ADR：なし（個別タスク内のテストキャッシュ修正であり、他タスクやコンポーネント境界を縛る主要決定ではない）。
-3. **CI の `.github/workflows/ci.yml` の `doc-guard` ジョブの `go test` コマンドに `-count=1` を追加する。**
-   - 理由：`doc-guard` は `actions/setup-go@v6`（`cache: true`）で `GOCACHE`（テストキャッシュを含む）を復元するため、`Makefile:97-98` の `test-ci` と同様にキャッシュ済み PASS の再利用を防ぐ必要があるため。
-   - ADR：なし（`ADR-0016` は `doc-guard` を全 PR で実行する方針と対象パッケージを定めており、`-count=1` の追加はその決定を変更しない）。
+3. CI の `.github/workflows/ci.yml` の `doc-guard` ジョブの `go test` コマンドに `-count=1` を追加し、その存在を自動テスト（ガードテスト）で固定する。
+   - 理由：`doc-guard` は `actions/setup-go@v6`（`cache: true`）で `GOCACHE`（テストキャッシュを含む）を復元するため、`Makefile:97-100` の `test-ci` と同様にキャッシュ済みの PASS の再利用を防ぐ必要がある。あわせて、将来の `ci.yml` 編集で `-count=1` が誤って落ちるのを防ぐため、`make test` に含まれる自動テストで固定する。
+   - ADR：なし（`ADR-0016` は `doc-guard` を全 PR で実行する方針と対象パッケージを定めており、`-count=1` の追加とガードテストによる固定はその決定を変更しない）。
 
 ## 2. 目的とスコープ (Goals and Scope)
 
 ### 2.1. 目的 (Goals)
 
-- 開発用シェルスクリプトまたは `Makefile` だけを編集したあとの `make test`（および `-run` による単体実行）で、該当テストがキャッシュ済み PASS を返さずに再実行される状態にする。
+- 開発用シェルスクリプトまたは `Makefile` だけを編集したあとの `make test`（および `-run` による単体実行）で、該当テストがキャッシュ済みの PASS を返さずに再実行される状態にする。
 - CI の `doc-guard` ジョブが、復元されたテストキャッシュを再利用して古い PASS を返さない状態にする。
 - issue #1205 の「要確認」各項目とリポジトリ全体の他テストについて、該当有無と対処を明示的に記録する。
 
@@ -77,7 +77,7 @@ Go のテストキャッシュ（`go test`）は、テストプロセス自身�
 - `Makefile` の `test` ターゲットへの `-count=1` 追加（ローカルのテストキャッシュ活用を維持するため、issue #1205 で除外済み）。
 - 開発ツール系テストのパッケージ分離や CI ジョブ分割（[#1181](https://github.com/isseis/yt2column/issues/1181) の範囲）。
 - ブラウザ拡張（`extension/`）の Node.js テスト（Go のテストキャッシュ機構の対象外）。
-- 外部コマンドバイナリ自体（`bash`・`make`・`git`・`deadcode` 等）のバージョン更新によるキャッシュ無効化（`deadcode_test.go:669-671` と同じく `-count=1` の手動実行で扱う）。
+- 外部コマンドバイナリ自体（`bash`・`make`・`git`・`deadcode` 等）のバージョン更新によるキャッシュ無効化（`cmd/yt2column/deadcode_test.go:669-671` と同じく `-count=1` の手動実行で扱う）。
 
 ## 3. 機能要件 (Functional Requirements)
 
@@ -88,16 +88,16 @@ Go のテストキャッシュ（`go test`）は、テストプロセス自身�
 リポジトリ内のシェルスクリプトを子プロセス（`bash`）に渡して実行するすべての Go テストにおいて、テストプロセス自身もそのスクリプトファイルを開いて読む。
 
 **Acceptance Criteria**:
-- **AC-01**: `cmd/yt2column` のスクリプト実行テスト（`review_records_test.go`・`high_review_decision_test.go`・`adr_candidates_docs_test.go`）は、子プロセスに渡す対象シェルスクリプトを Go のテストプロセス自身でも開き、スクリプトだけを変更したあとの `make test`（および `-run` 指定の実行）でキャッシュ済みの PASS を返さず再実行され、スクリプトを壊した変更では失敗する。
-- **AC-02**: `internal/chief/markers_parity_test.go` は、子プロセスに渡す `.claude/commands/_lib/high-review-decision.sh` を Go のテストプロセス自身でも開き、同スクリプトだけを変更したあとの `make test`（および `-run` 指定の実行）でキャッシュ済みの PASS を返さず再実行され、スクリプトを壊した変更では失敗する。
-- **AC-03**: `internal/ciskip` の実スクリプト実行テスト（`git_test.go`）は、子プロセスに渡す `extension/scripts/has-extension-changes.sh` を Go のテストプロセス自身でも開き、同スクリプトだけを変更したあとの `make test`（および `-run` 指定の実行）でキャッシュ済みの PASS を返さず再実行され、スクリプトを壊した変更では失敗する。
+- **AC-01**: `cmd/yt2column` のスクリプト実行テスト（`review_records_test.go`・`high_review_decision_test.go`・`adr_candidates_docs_test.go`）は、子プロセスに渡す対象シェルスクリプトを Go のテストプロセス自身でも開く。対象スクリプトだけを変更したあとの `make test`（および `-run` 指定の実行）ではキャッシュ済みの PASS を返さず再実行され、スクリプトを壊した変更では失敗する。
+- **AC-02**: `internal/chief/markers_parity_test.go` は、子プロセスに渡す `.claude/commands/_lib/high-review-decision.sh` を Go のテストプロセス自身でも開く。同スクリプトだけを変更したあとの `make test`（および `-run` 指定の実行）ではキャッシュ済みの PASS を返さず再実行され、スクリプトを壊した変更では失敗する。
+- **AC-03**: `internal/ciskip` の実スクリプト実行テスト（`git_test.go`）は、子プロセスに渡す `extension/scripts/has-extension-changes.sh` を Go のテストプロセス自身でも開く。同スクリプトだけを変更したあとの `make test`（および `-run` 指定の実行）ではキャッシュ済みの PASS を返さず再実行され、スクリプトを壊した変更では失敗する。
 
 #### F-002: `Makefile` を実行するテストのキャッシュキー登録
 
 リポジトリの `Makefile` を子プロセス（`make`）に渡して実行する Go テストにおいて、テストプロセス自身もその `Makefile` を開いて読む。
 
 **Acceptance Criteria**:
-- **AC-04**: `internal/maketestutil` の `RunTarget`（`internal/transcript`・`internal/llm/{deepseek,claude,openai}`・`cmd/yt2column` の各 `makefile_test.go` が利用）および `cmd/yt2column/makefile_test.go` の `make` 実行ヘルパー（`makeDryRun`・`recipeStub.command`）は、対象の `Makefile` を Go のテストプロセス自身でも開き、`Makefile` だけを変更したあとの `make test` および `-run` 指定の単体実行でキャッシュ済みの PASS を返さず再実行される。
+- **AC-04**: `internal/maketestutil` の `RunTarget`（`internal/transcript`・`internal/llm/{deepseek,claude,openai}`・`cmd/yt2column` の各 `makefile_test.go` が利用）および `cmd/yt2column/makefile_test.go` の `make` 実行ヘルパー（`makeDryRun`・`recipeStub.command`）は、対象の `Makefile` を Go のテストプロセス自身でも開く。`Makefile` だけを変更したあとの `make test` および `-run` 指定の単体実行ではキャッシュ済みの PASS を返さず再実行される。
 
 #### F-003: CI `doc-guard` ジョブでのキャッシュ再利用防止
 
@@ -105,7 +105,7 @@ Go のテストキャッシュ（`go test`）は、テストプロセス自身�
 
 **Acceptance Criteria**:
 - **AC-05**: `.github/workflows/ci.yml` の `doc-guard` ジョブが実行する `go test` コマンドに `-count=1` が含まれている。
-- **AC-06**: `internal/ciskip/workflow_pin_test.go` のテストが `.github/workflows/ci.yml` の `doc-guard` ジョブの `go test` コマンドに `-count=1` が含まれることを確かめ、`-count=1` を外したときに失敗する。
+- **AC-06**: `make test` に含まれる自動テストが `.github/workflows/ci.yml` の `doc-guard` ジョブの `go test` コマンドに `-count=1` が含まれることを確かめ、`-count=1` を外したときに失敗する。
 
 #### F-004: 既存検証の維持
 
@@ -118,7 +118,7 @@ Go のテストキャッシュ（`go test`）は、テストプロセス自身�
 
 ### 4.1. 性能 (Performance)
 
-- テストプロセスで読み込む対象ファイル（シェルスクリプトおよび `Makefile`）はいずれも数十 KiB 以下であり、テスト実行時間への増加は無視できる範囲であること。
+- テストプロセスで読み込む対象ファイル（シェルスクリプトおよび `Makefile`）はいずれも数十 KiB 以下であり、テスト実行時間の増加は無視できる範囲であること。
 
 ### 4.2. セキュリティ (Security)
 
@@ -126,7 +126,7 @@ Go のテストキャッシュ（`go test`）は、テストプロセス自身�
 
 ### 4.3. 信頼性・可用性 (Reliability/Availability)
 
-- 対象のスクリプトや `Makefile` が存在しないか読み込めない場合、テストは黙ってスキップせず即座に失敗（`t.Fatalf`）すること。
+- 対象のスクリプトや `Makefile` が存在しないか読み込めない場合、テストは黙ってスキップせず即座に失敗すること。
 
 ### 4.4. 互換性 (Compatibility)
 
