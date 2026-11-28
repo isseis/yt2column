@@ -42,6 +42,8 @@ func TestTimingEnabled(t *testing.T) {
 		want    bool
 		wantErr bool
 	}{
+		// An unset and a set-but-empty variable both mean no request; the
+		// second row pins that a set empty value is not rejected.
 		{name: "unset"},
 		{name: "empty", set: true},
 		{name: "one", value: TestTimingValue, set: true, want: true},
@@ -61,6 +63,9 @@ func TestTimingEnabled(t *testing.T) {
 			if tc.wantErr {
 				if !errors.Is(err, ErrTestTimingValue) {
 					t.Fatalf("TimingEnabled(%q) error = %v, want ErrTestTimingValue", tc.value, err)
+				}
+				if got {
+					t.Errorf("TimingEnabled(%q) = true with an error, want false", tc.value)
 				}
 				return
 			}
