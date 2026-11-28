@@ -1028,8 +1028,9 @@ func assertCopiedRejected(t *testing.T, input string, reason error) string {
 //
 // The parse time is compared with copiedParseDeadline only in the build without
 // the race detector (copiedParseChecksDeadline), which parses as the production
-// builds do; `make test-parse-norace` runs that check alone, so no other package's
-// tests or coverage instrumentation run alongside it. The deadline is ten times
+// builds do; `make test-parse-norace` runs it with the other timing check, one
+// package at a time, so no other test or coverage instrumentation runs alongside
+// it. The deadline is ten times
 // the slowest of the CI runner measurements of that run, rounded up to half a
 // second; the measurements and the calculation are recorded in section 8 of
 // docs/tasks/0039_large_input_test_timeout/04_investigation.md. One deadline

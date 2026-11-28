@@ -31,6 +31,75 @@ func TestValidateChargedTarget(t *testing.T) {
 	}
 }
 
+// TestTimingEnabled checks that only TestTimingEnv set to TestTimingValue asks
+// for the timing comparison: an unset or empty variable does not, and every
+// other value is rejected rather than read as another value.
+func TestTimingEnabled(t *testing.T) {
+	cases := []struct {
+		name    string
+		value   string
+		set     bool
+		want    bool
+		wantErr bool
+	}{
+		// An unset and a set-but-empty variable both mean no request; the
+		// second row pins that a set empty value is not rejected.
+		{name: "unset"},
+		{name: "empty", set: true},
+		{name: "one", value: TestTimingValue, set: true, want: true},
+		{name: "zero", value: "0", set: true, wantErr: true},
+		{name: "true", value: "true", set: true, wantErr: true},
+		{name: "leading space", value: " 1", set: true, wantErr: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			getenv := func(name string) (string, bool) {
+				if name != TestTimingEnv || !tc.set {
+					return "", false
+				}
+				return tc.value, true
+			}
+			got, err := TimingEnabled(getenv)
+			if tc.wantErr {
+				if !errors.Is(err, ErrTestTimingValue) {
+					t.Fatalf("TimingEnabled(%q) error = %v, want ErrTestTimingValue", tc.value, err)
+				}
+				if got {
+					t.Errorf("TimingEnabled(%q) = true with an error, want false", tc.value)
+				}
+				return
+			}
+			if err != nil || got != tc.want {
+				t.Errorf("TimingEnabled(%q) = %v, %v; want %v, nil", tc.value, got, err, tc.want)
+			}
+		})
+	}
+}
+
+// TestRunNames checks that a parenthesized list of names is split on '|' and
+// that a value of any other shape, an empty name included, is rejected.
+func TestRunNames(t *testing.T) {
+	got, err := RunNames("^(TestA|TestB)$")
+	if err != nil {
+		t.Fatalf("RunNames() error = %v", err)
+	}
+	if want := []string{"TestA", "TestB"}; !slices.Equal(got, want) {
+		t.Errorf("RunNames() = %q, want %q", got, want)
+	}
+	for _, value := range []string{
+		"TestA",
+		"^TestA$",
+		"^(TestA)$x",
+		"^()$",
+		"^(TestA|)$",
+		"^(|TestA)$",
+	} {
+		if _, err := RunNames(value); !errors.Is(err, ErrRunNames) {
+			t.Errorf("RunNames(%q) error = %v, want ErrRunNames", value, err)
+		}
+	}
+}
+
 // TestRecordedNames checks that extra names follow base once each, with no
 // duplicate, and pass the same name check as the base ones, since both are
 // embedded in the stub script.

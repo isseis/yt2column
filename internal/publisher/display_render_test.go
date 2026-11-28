@@ -5,11 +5,13 @@ package publisher
 import (
 	"errors"
 	"math"
+	"os"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/isseis/yt2column/internal/maketestutil"
 	"github.com/isseis/yt2column/internal/writer"
 )
 
@@ -224,13 +226,23 @@ func TestNeutralizedDisplayMarkdownKeptAts(t *testing.T) {
 	})
 }
 
-// TestNeutralizedDisplayMarkdownLinearTime checks that the time grows
-// linearly with the input: for an input four times as long it must take less
-// than eight times as long (a linear pass takes about four times, a pass that
-// searches back from each '@' or each URL start about sixteen). The minimum
-// of several runs keeps a slow run from deciding, and no absolute limit is
-// set, because make test runs with the race detector.
+// TestNeutralizedDisplayMarkdownLinearTime checks, for each of two long
+// inputs, that NeutralizedDisplayMarkdown succeeds and keeps its output
+// contract. When YT2COLUMN_TEST_TIMING asks for the timing comparison and this
+// build has no race detector, it also checks that the time grows linearly with
+// the input: for an input four times as long it must take less than eight
+// times as long (a linear pass takes about four times, a pass that searches
+// back from each '@' or each URL start about sixteen). The minimum of several
+// runs keeps a slow run from deciding, and no absolute limit is set, because a
+// machine's speed differs. The race build and full runs without
+// YT2COLUMN_TEST_TIMING only check the success and the contract.
 func TestNeutralizedDisplayMarkdownLinearTime(t *testing.T) {
+	timing, err := maketestutil.TimingEnabled(os.LookupEnv)
+	if err != nil {
+		t.Fatalf("timing request: %v", err)
+	}
+	checkRatio := timing && neutralizedLinearTimeChecksRatio
+
 	// Each unit is one long line: a pass that searches back to the line start
 	// or the text start takes time quadratic in its length. Without '[' every
 	// URL start opens and every "/@" is judged inside an open URL; with '['
@@ -241,6 +253,16 @@ func TestNeutralizedDisplayMarkdownLinearTime(t *testing.T) {
 	}
 	for name, unit := range units {
 		t.Run(name, func(t *testing.T) {
+			const n = 2000
+			longInput := articleWith("T", "", strings.Repeat(unit, 4*n))
+			got, err := NeutralizedDisplayMarkdown(longInput)
+			if err != nil {
+				t.Fatalf("NeutralizedDisplayMarkdown error = %v", err)
+			}
+			checkNeutralizedContract(t, longInput, got)
+			if !checkRatio {
+				return
+			}
 			timeOf := func(repeat int) time.Duration {
 				a := articleWith("T", "", strings.Repeat(unit, repeat))
 				best := time.Duration(math.MaxInt64)
@@ -256,7 +278,6 @@ func TestNeutralizedDisplayMarkdownLinearTime(t *testing.T) {
 				}
 				return best
 			}
-			const n = 2000
 			short, long := timeOf(n), timeOf(4*n)
 			if long >= 8*short {
 				t.Errorf("time for %d units = %v, for %d units = %v: ratio %.1f, want under 8", n, short, 4*n, long, float64(long)/float64(short))

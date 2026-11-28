@@ -3,6 +3,7 @@
 package transcript
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -15,12 +16,15 @@ import (
 	"github.com/isseis/yt2column/internal/maketestutil"
 )
 
-// The parse deadline is checked by one go test run that -run narrows to
-// TestParseCopiedLargeInputs. A renamed test, an added -race, a dropped
-// -count=1, or a removed call or CI step would leave that run passing without
-// the check, so these tests pin the recipe and the places that run it.
+// The parse deadline and the neutralizer's linear-time ratio are checked by
+// one go test run that -run narrows to TestParseCopiedLargeInputs and
+// TestNeutralizedDisplayMarkdownLinearTime, with -p 1 so the two packages run
+// one at a time. A renamed test, an added -race, a dropped -count=1 or -p 1, a
+// missing timing variable, or a removed call or CI step would leave that run
+// passing without the check, so these tests pin the recipe and the places that
+// run it.
 
-// parseNoraceTarget is the make target that runs the parse deadline check.
+// parseNoraceTarget is the make target that runs the timing checks.
 const parseNoraceTarget = "test-parse-norace"
 
 // repositoryRoot is where the Makefile lives, relative to this package.
@@ -33,12 +37,14 @@ func largeInputTestName() string {
 	return name[strings.LastIndex(name, ".")+1:]
 }
 
-// TestMakeTestParseNorace checks the go test arguments of test-parse-norace:
-// the test build tag without -race or coverage, no cached result, only
-// TestParseCopiedLargeInputs in this package, and a -timeout above the seven
-// inputs' deadlines together but below go test's default of ten minutes. The
-// deadline itself must stay well under the 30 seconds the viewer allows the
-// Worker to load the article generation module and prepare the input.
+// TestMakeTestParseNorace checks the go test arguments and environment of
+// test-parse-norace: the test build tag without -race or coverage, no cached
+// result, -p 1 so the two packages run one at a time, exactly the two timing
+// tests, an environment that asks the linear-time test for the ratio, and a
+// -timeout above the seven inputs' deadlines together but below go test's
+// default of ten minutes. The deadline itself must stay well under the 30
+// seconds the viewer allows the Worker to load the article generation module
+// and prepare the input.
 func TestMakeTestParseNorace(t *testing.T) {
 	const (
 		timeoutPlaceholder = "<timeout>"
@@ -50,11 +56,12 @@ func TestMakeTestParseNorace(t *testing.T) {
 		parseBudget    = 30 * time.Second
 	)
 	wantArgs := []string{
-		"-tags", "test", "-count=1", "-v",
-		"-timeout", timeoutPlaceholder, "-run", runPlaceholder, "./internal/transcript",
+		"-tags", "test", "-count=1", "-v", "-p", "1",
+		"-timeout", timeoutPlaceholder, "-run", runPlaceholder,
+		"./internal/transcript", "./internal/publisher",
 	}
 
-	_, invocation := maketestutil.RunTarget(t, repositoryRoot, parseNoraceTarget, nil, nil, nil)
+	_, invocation := maketestutil.RunTarget(t, repositoryRoot, parseNoraceTarget, nil, []string{maketestutil.TestTimingEnv}, nil)
 	args := slices.Clone(invocation.Args)
 	if i := slices.Index(args, "-timeout"); i >= 0 && i+1 < len(args) {
 		timeout, err := time.ParseDuration(args[i+1])
@@ -65,13 +72,24 @@ func TestMakeTestParseNorace(t *testing.T) {
 		args[i+1] = timeoutPlaceholder
 	}
 	if i := slices.Index(args, "-run"); i >= 0 && i+1 < len(args) {
-		if want := "^" + largeInputTestName() + "$"; args[i+1] != want {
-			t.Errorf("-run %q, want %q", args[i+1], want)
+		names, err := maketestutil.RunNames(args[i+1])
+		if err != nil {
+			t.Errorf("-run value: %v", err)
+		} else {
+			if len(names) != 2 {
+				t.Errorf("-run names %q, want exactly two", names)
+			}
+			if want := largeInputTestName(); !slices.Contains(names, want) {
+				t.Errorf("-run names %q do not include %q", names, want)
+			}
 		}
 		args[i+1] = runPlaceholder
 	}
 	if !slices.Equal(args, wantArgs) {
 		t.Errorf("GOTEST arguments = %q, want %q", invocation.Args, wantArgs)
+	}
+	if got, ok := invocation.Env[maketestutil.TestTimingEnv]; !ok || got != maketestutil.TestTimingValue {
+		t.Errorf("%s = %q (set %t), want %q", maketestutil.TestTimingEnv, got, ok, maketestutil.TestTimingValue)
 	}
 	if copiedParseDeadline >= parseBudget {
 		t.Errorf("copiedParseDeadline = %s, want under the %s parse budget", copiedParseDeadline, parseBudget)
@@ -79,14 +97,21 @@ func TestMakeTestParseNorace(t *testing.T) {
 }
 
 // TestMakeTestRunsParseNorace checks that `make test` ends by running
-// test-parse-norace. The stub GOTEST keeps only its last call, and the
-// command-line GOTEST reaches the sub-make, so that last call's arguments are
-// those of test-parse-norace exactly when `make test` runs it last.
+// test-parse-norace: its last GOTEST call has the target's arguments and
+// environment. The stub GOTEST keeps only its last call, and the command-line
+// GOTEST reaches the sub-make, so that last call's arguments and environment
+// are those of test-parse-norace exactly when `make test` runs it last. A
+// recipe that ends with an inline go test command of the same arguments but a
+// different environment fails the environment comparison.
 func TestMakeTestRunsParseNorace(t *testing.T) {
-	_, want := maketestutil.RunTarget(t, repositoryRoot, parseNoraceTarget, nil, nil, nil)
-	_, got := maketestutil.RunTarget(t, repositoryRoot, "test", nil, nil, nil)
+	record := []string{maketestutil.TestTimingEnv}
+	_, want := maketestutil.RunTarget(t, repositoryRoot, parseNoraceTarget, nil, record, nil)
+	_, got := maketestutil.RunTarget(t, repositoryRoot, "test", nil, record, nil)
 	if !slices.Equal(got.Args, want.Args) {
 		t.Errorf("make test last ran GOTEST with %q, want the %s arguments %q", got.Args, parseNoraceTarget, want.Args)
+	}
+	if !maps.Equal(got.Env, want.Env) {
+		t.Errorf("make test last ran GOTEST with environment %q, want the %s environment %q", got.Env, parseNoraceTarget, want.Env)
 	}
 }
 

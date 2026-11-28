@@ -26,11 +26,60 @@ var (
 	// ErrFirstLineMismatch reports that a file's first line is not the
 	// expected one.
 	ErrFirstLineMismatch = errors.New("first line mismatch")
+	// ErrTestTimingValue reports a TestTimingEnv value that is neither empty
+	// nor TestTimingValue.
+	ErrTestTimingValue = errors.New("test timing value not accepted")
+	// ErrRunNames reports a -run value that is not a parenthesized list of
+	// test names.
+	ErrRunNames = errors.New("not a parenthesized list of test names")
 	// errEnvName reports a variable name the stub script cannot embed.
 	errEnvName = errors.New("variable name is not a plain shell name")
 	// errNoVars reports a ChargedTarget that names no variable.
 	errNoVars = errors.New("ChargedTarget.Vars must name at least one variable")
 )
+
+// TestTimingEnv is the variable that asks a timing test to compare times.
+// Only the test-parse-norace recipe sets it.
+const TestTimingEnv = "YT2COLUMN_TEST_TIMING"
+
+// TestTimingValue is the only value of TestTimingEnv that asks for the
+// comparison; an unset or empty variable does not ask for it.
+const TestTimingValue = "1"
+
+// TimingEnabled reports whether getenv asks for the timing comparison. An
+// unset or empty variable does not ask for it, TestTimingValue does, and any
+// other value wraps ErrTestTimingValue with the accepted value and the value
+// read, so a test fails on it instead of reading it as another value.
+func TimingEnabled(getenv func(string) (string, bool)) (bool, error) {
+	value, _ := getenv(TestTimingEnv)
+	switch value {
+	case "":
+		return false, nil
+	case TestTimingValue:
+		return true, nil
+	default:
+		return false, fmt.Errorf("%w: %s must be empty or %q, not %q", ErrTestTimingValue, TestTimingEnv, TestTimingValue, value)
+	}
+}
+
+// RunNames returns the test names of a go test -run value of the form
+// ^(Name|Name)$, where every name is non-empty. It looks only at the shape of
+// the string and never reads it as a regular expression.
+func RunNames(value string) ([]string, error) {
+	inner, ok := strings.CutPrefix(value, "^(")
+	if !ok {
+		return nil, fmt.Errorf("%w: %q does not start with ^(", ErrRunNames, value)
+	}
+	inner, ok = strings.CutSuffix(inner, ")$")
+	if !ok {
+		return nil, fmt.Errorf("%w: %q does not end with )$", ErrRunNames, value)
+	}
+	names := strings.Split(inner, "|")
+	if slices.Contains(names, "") {
+		return nil, fmt.Errorf("%w: %q has an empty name", ErrRunNames, value)
+	}
+	return names, nil
+}
 
 // childEnvAllowlist is the environment the make child receives. It is an
 // allowlist, so nothing from the outer `make test` leaks in: MAKEFLAGS,
