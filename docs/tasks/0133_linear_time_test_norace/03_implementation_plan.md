@@ -144,7 +144,7 @@
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 - [x] フェーズ 1（ステップ 1-1〜1-4）
-- [ ] PR を作成した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1214
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（最終の PR のため）
 
