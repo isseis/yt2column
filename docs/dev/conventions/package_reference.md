@@ -143,7 +143,7 @@ add a kind here or to widen one of these definitions.
 | `internal/llm/openai/testutil` | What the OpenAI integration test needs: `SettingsFrom` decides from the environment whether it runs, skips, or fails. |
 | `internal/llm/testutil` | Test doubles for `llm.LLMClient`: `FakeLLMClient` and a scripted client. |
 | `internal/loopbacktest` | The rule a test endpoint must meet so a loopback constructor cannot be pointed at an external host: `ValidateURL`. |
-| `internal/maketestutil` | Checks the make targets that run charged integration tests: `RunTarget`, `CheckChargedTarget`, `RecordedNames`, `FirstLineIs`. |
+| `internal/maketestutil` | Checks the make targets that run charged integration tests and the timing checks they request: `RunTarget`, `CheckChargedTarget`, `RecordedNames`, `FirstLineIs`, `TimingEnabled`, `RunNames`, and the constants `TestTimingEnv` and `TestTimingValue`. |
 | `internal/pricing/testutil` | Formats a stage's estimated cost as one log line: `CostSummary`. |
 | `internal/publisher/testutil` | Test double `FakePublisher` for the publisher and the pipeline. |
 | `internal/snapshottest` | Test-only. Builds an expensive directory state once per test process and copies it into each test's own directory, so tests do not rebuild it: `Store`, `Kind`, `Load`, `Snapshot.CopyTo`, `Snapshot.Value`. |
