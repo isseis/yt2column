@@ -215,11 +215,11 @@ change, retire, and withdraw an ADR is in the convention,
 - `make install-numreserve` - Install the `numreserve` developer tool, which decides a task or ADR number by creating a record tag on GitHub (`go install ./cmd/numreserve`); rerun it after a merge that changes the tool
 
 ### Test Commands
-- `make test` - Run all tests with race detection, then `make test-parse-norace`
+- `make test` - Run all tests with race detection, then `make test-parse-norace`, which checks the parse-time deadline and the linear-time ratio without race detection
 - `make readme-sync-check` - Run `TestReadmeSyncMarker` alone: `README.en.md`'s sync marker names the blob of `README.md` (passes while `README.en.md` does not exist); the pre-commit hook for the READMEs runs it
 - `make coverage-compare BASE=<commit>` - Run the Go test suite at BASE and at HEAD with coverage and compare the product code's coverage function by function; the last line is `coverage-compare: PASS`, `FAIL`, or `STOP <kind>`. For a commit that deletes Go tests, with its parent as BASE
-- `make test-parse-norace` - Run `TestParseCopiedLargeInputs` alone without race detection; the parse-time deadline is checked only in builds without race detection, so this target and the plain `go test` commands below check it and `make test`'s race run does not
-- `go test -tags test -v ./...` - Run all tests directly
+- `make test-parse-norace` - Run `TestParseCopiedLargeInputs` and `TestNeutralizedDisplayMarkdownLinearTime` alone without race detection; the parse-time deadline and the linear-time time ratio are checked only in builds without race detection, and the ratio only when `YT2COLUMN_TEST_TIMING=1`, which this target sets. The plain `go test` commands below check the deadline but not the ratio, and `make test`'s race run checks neither
+- `go test -tags test -v ./...` - Run all tests directly (the non-race build checks the parse deadline but not the linear-time ratio)
 - `go test -tags test -v ./internal/specific/package` - Run tests for specific package
 
 ### Code Quality
