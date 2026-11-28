@@ -49,55 +49,55 @@
 
 - **対象ファイル**: `internal/maketestutil/make.go`
 - **作業内容**:
-  - [ ] `internal/maketestutil/make.go` の `RunTarget` で、`make` を起動する前に `filepath.Join(root, "Makefile")` を `os.ReadFile` で読み込み、失敗時は `t.Fatalf` で失敗させる（`gosec`（G304）が反応する場合は、テスト専用パスである旨の英語コメント付きで該当行のみに `//nolint:gosec` を付与する）。
-  - [ ] 読み込み行に、テストキャッシュのキーに `Makefile` を入れるために読む旨の英語コメントを付ける（`cmd/yt2column/deadcode_test.go:207-209` と同じ形）。
+  - [x] `internal/maketestutil/make.go` の `RunTarget` で、`make` を起動する前に `filepath.Join(root, "Makefile")` を `os.ReadFile` で読み込み、失敗時は `t.Fatalf` で失敗させる（`gosec`（G304）が反応する場合は、テスト専用パスである旨の英語コメント付きで該当行のみに `//nolint:gosec` を付与する）。
+  - [x] 読み込み行に、テストキャッシュのキーに `Makefile` を入れるために読む旨の英語コメントを付ける（`cmd/yt2column/deadcode_test.go:207-209` と同じ形）。
 - **完了条件**: `go test -tags test -count=1 ./internal/maketestutil` が成功する。
 
 #### ステップ 1-2: `internal/ciskip` の `has-extension-changes.sh` 読み込み集約
 
 - **対象ファイル**: `internal/ciskip/test_helpers.go`, `internal/ciskip/git_test.go`
 - **作業内容**:
-  - [ ] `internal/ciskip/test_helpers.go` にパッケージ非公開ヘルパー `newRealScriptRunner(t *testing.T) cmdrunner.InputRunner` を追加し、リポジトリルートを基準に `hasExtensionChangesScript` を `os.ReadFile` で読んで失敗時は `t.Fatalf` としたうえで `cmdrunner.NewOS(scriptOpts)` を返す（必要に応じて該当行のみ `//nolint:gosec` を付与する）。
-  - [ ] `(*testGitRepo).runners` と `internal/ciskip/git_test.go` の `TestCheckExtensionChangesEarlyExitNoDeadlock` が `newRealScriptRunner(t)` を使うように置き換える。
-  - [ ] 読み込み行に、テストキャッシュのキーにスクリプトを入れるために読む旨の英語コメントを付ける。
+  - [x] `internal/ciskip/test_helpers.go` にパッケージ非公開ヘルパー `newRealScriptRunner(t *testing.T) cmdrunner.InputRunner` を追加し、リポジトリルートを基準に `hasExtensionChangesScript` を `os.ReadFile` で読んで失敗時は `t.Fatalf` としたうえで `cmdrunner.NewOS(scriptOpts)` を返す（必要に応じて該当行のみ `//nolint:gosec` を付与する）。
+  - [x] `(*testGitRepo).runners` と `internal/ciskip/git_test.go` の `TestCheckExtensionChangesEarlyExitNoDeadlock` が `newRealScriptRunner(t)` を使うように置き換える。
+  - [x] 読み込み行に、テストキャッシュのキーにスクリプトを入れるために読む旨の英語コメントを付ける。
 - **完了条件**: `go test -tags test -count=1 ./internal/ciskip` が成功する。
 
 #### ステップ 1-3: `internal/chief/markers_parity_test.go` のスクリプト読み込み
 
 - **対象ファイル**: `internal/chief/markers_parity_test.go`
 - **作業内容**:
-  - [ ] `TestMarkerReadingMatchesDecisionScript` で `filepath.Abs(decisionScript)` の直後に `os.ReadFile(script)` を実行し、失敗時は `t.Fatalf` で失敗させる。
-  - [ ] 読み込み行に、テストキャッシュのキーにスクリプトを入れるために読む旨の英語コメントを付ける。
+  - [x] `TestMarkerReadingMatchesDecisionScript` で `filepath.Abs(decisionScript)` の直後に `os.ReadFile(script)` を実行し、失敗時は `t.Fatalf` で失敗させる。
+  - [x] 読み込み行に、テストキャッシュのキーにスクリプトを入れるために読む旨の英語コメントを付ける。
 - **完了条件**: `go test -tags test -count=1 ./internal/chief` が成功する。
 
 #### ステップ 1-4: `cmd/yt2column` のスクリプト・`Makefile` ヘルパー修正
 
 - **対象ファイル**: `cmd/yt2column/test_helpers_gitfixture.go`, `cmd/yt2column/makefile_test.go`
 - **作業内容**:
-  - [ ] `cmd/yt2column/test_helpers_gitfixture.go` の `(*gitFixture).runScript` で、`filepath.Abs(script)` の直後に `os.ReadFile(abs)` を実行し、失敗時は `f.t.Fatalf` で失敗させる（必要に応じて該当行のみ `//nolint:gosec` を付与する）。
-  - [ ] `cmd/yt2column/makefile_test.go` の `makeDryRun` と `recipeStub.command` で、`filepath.Join(repositoryRoot, "Makefile")` を `os.ReadFile` で読み込み、失敗時は `t.Fatalf` で失敗させる。
-  - [ ] 3 箇所の読み込み行に、テストキャッシュのキーに対象ファイルを入れるために読む旨の英語コメントを付ける。
+  - [x] `cmd/yt2column/test_helpers_gitfixture.go` の `(*gitFixture).runScript` で、`filepath.Abs(script)` の直後に `os.ReadFile(abs)` を実行し、失敗時は `f.t.Fatalf` で失敗させる（必要に応じて該当行のみ `//nolint:gosec` を付与する）。
+  - [x] `cmd/yt2column/makefile_test.go` の `makeDryRun` と `recipeStub.command` で、`filepath.Join(repositoryRoot, "Makefile")` を `os.ReadFile` で読み込み、失敗時は `t.Fatalf` で失敗させる。
+  - [x] 3 箇所の読み込み行に、テストキャッシュのキーに対象ファイルを入れるために読む旨の英語コメントを付ける。
 - **完了条件**: `go test -tags test -count=1 ./cmd/yt2column` が成功する。
 
 #### ステップ 1-5: CI `doc-guard` への `-count=1` 追加、`CLAUDE.md` 更新、およびワークフローガードテスト追加
 
 - **対象ファイル**: `.github/workflows/ci.yml`, `CLAUDE.md`, `internal/ciskip/workflow_pin_test.go`
 - **作業内容**:
-  - [ ] `.github/workflows/ci.yml` の `doc-guard` ジョブ（`Run documentation sync guards` ステップ）の `go test` コマンドに `-count=1` を追加する。
-  - [ ] `CLAUDE.md:959` の `doc-guard` 実行コマンドの引用を `go test -tags test -count=1 ./cmd/yt2column ./cmd/fixprguard ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief` に更新する。
-  - [ ] `internal/ciskip/workflow_pin_test.go` に `TestWorkflowDocGuardDisablesCache` を追加し、`doc-guard` ジョブに `go test` を実行するステップが 1 件以上存在し、行内コメント（`#` 以降）を除いたすべての `go test` コマンドに引数トークンとして `-count=1` が含まれることを確かめる。
+  - [x] `.github/workflows/ci.yml` の `doc-guard` ジョブ（`Run documentation sync guards` ステップ）の `go test` コマンドに `-count=1` を追加する。
+  - [x] `CLAUDE.md:959` の `doc-guard` 実行コマンドの引用を `go test -tags test -count=1 ./cmd/yt2column ./cmd/fixprguard ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief` に更新する。
+  - [x] `internal/ciskip/workflow_pin_test.go` に `TestWorkflowDocGuardDisablesCache` を追加し、`doc-guard` ジョブに `go test` を実行するステップが 1 件以上存在し、行内コメント（`#` 以降）を除いたすべての `go test` コマンドに引数トークンとして `-count=1` が含まれることを確かめる。
 - **完了条件**: `go test -tags test -count=1 ./internal/ciskip` が成功する。
 
 #### ステップ 1-6: 壊し確認と全体検証
 
 - **対象ファイル**: なし（検証ステップ）
 - **作業内容**:
-  - [ ] 修正前コミット（または `os.ReadFile` を一時的に外した状態）で、issue #1205 の手順どおりスクリプトを壊したときに `(cached)` で PASS することを確かめる。
-  - [ ] 修正後の状態で、`review-records.sh`・`high-review-decision.sh`・`adr-correction-candidates.sh`・`has-extension-changes.sh`・`Makefile` のそれぞれについて単独変更（壊し）を行い、対応するテストがキャッシュを使わず再実行されて失敗することを確かめ、変更を元に戻す。
-  - [ ] 6 箇所（`RunTarget`・`newRealScriptRunner`・`TestMarkerReadingMatchesDecisionScript`・`runScript`・`makeDryRun`・`recipeStub.command`）のそれぞれについて、その箇所の `os.ReadFile` だけを一時的に外した状態で対象ファイルを変えると `(cached)` の PASS に戻り、戻すと再実行されることを確かめ、元に戻す（`02_architecture.md` §7.2 の手順 3）。実行は `-run` でその箇所を通るテストだけに絞る。`cmd/yt2column` では、`Makefile` を読む既存の `deadcode_test.go:210,680` ともう一方のヘルパーが同じ実行に入らないようにする（`makeDryRun` は `TestMakeWasmCheck`、`recipeStub.command` は `TestCoverageCompareRecipeForwardsSignal` など）。
-  - [ ] `.github/workflows/ci.yml` の `doc-guard` から `-count=1` を一時的に外したときに `TestWorkflowDocGuardDisablesCache` が失敗することを確かめ、元に戻す。
-  - [ ] 壊し確認の結果をコミットメッセージに記録する（`CLAUDE.md`「Testing Strategy」）。
-  - [ ] `make fmt`・`make test`・`make lint` を実行し、すべて成功することを確かめる。
+  - [x] 修正前コミット（または `os.ReadFile` を一時的に外した状態）で、issue #1205 の手順どおりスクリプトを壊したときに `(cached)` で PASS することを確かめる。
+  - [x] 修正後の状態で、`review-records.sh`・`high-review-decision.sh`・`adr-correction-candidates.sh`・`has-extension-changes.sh`・`Makefile` のそれぞれについて単独変更（壊し）を行い、対応するテストがキャッシュを使わず再実行されて失敗することを確かめ、変更を元に戻す。
+  - [x] 6 箇所（`RunTarget`・`newRealScriptRunner`・`TestMarkerReadingMatchesDecisionScript`・`runScript`・`makeDryRun`・`recipeStub.command`）のそれぞれについて、その箇所の `os.ReadFile` だけを一時的に外した状態で対象ファイルを変えると `(cached)` の PASS に戻り、戻すと再実行されることを確かめ、元に戻す（`02_architecture.md` §7.2 の手順 3）。実行は `-run` でその箇所を通るテストだけに絞る。`cmd/yt2column` では、`Makefile` を読む既存の `deadcode_test.go:210,680` ともう一方のヘルパーが同じ実行に入らないようにする（`makeDryRun` は `TestMakeWasmCheck`、`recipeStub.command` は `TestCoverageCompareRecipeForwardsSignal` など）。
+  - [x] `.github/workflows/ci.yml` の `doc-guard` から `-count=1` を一時的に外したときに `TestWorkflowDocGuardDisablesCache` が失敗することを確かめ、元に戻す。
+  - [x] 壊し確認の結果をコミットメッセージに記録する（`CLAUDE.md`「Testing Strategy」）。
+  - [x] `make fmt`・`make test`・`make lint` を実行し、すべて成功することを確かめる。
 - **完了条件**: すべての壊し確認が期待どおり失敗し、元に戻した状態で `make test && make lint` が成功する。
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
@@ -133,12 +133,14 @@
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] ステップ 1-1: `internal/maketestutil` の `Makefile` 読み込み完了
-- [ ] ステップ 1-2: `internal/ciskip` の `newRealScriptRunner` 集約完了
-- [ ] ステップ 1-3: `internal/chief/markers_parity_test.go` のスクリプト読み込み完了
-- [ ] ステップ 1-4: `cmd/yt2column` の `runScript`・`makeDryRun`・`recipeStub.command` 修正完了
-- [ ] ステップ 1-5: `.github/workflows/ci.yml` の `doc-guard` `-count=1` 追加、`CLAUDE.md` 更新、および `TestWorkflowDocGuardDisablesCache` 追加完了
-- [ ] ステップ 1-6: 壊し確認および `make fmt`・`make test`・`make lint` 通過
+- [x] ステップ 1-1: `internal/maketestutil` の `Makefile` 読み込み完了
+- [x] ステップ 1-2: `internal/ciskip` の `newRealScriptRunner` 集約完了
+- [x] ステップ 1-3: `internal/chief/markers_parity_test.go` のスクリプト読み込み完了
+- [x] ステップ 1-4: `cmd/yt2column` の `runScript`・`makeDryRun`・`recipeStub.command` 修正完了
+- [x] ステップ 1-5: `.github/workflows/ci.yml` の `doc-guard` `-count=1` 追加、`CLAUDE.md` 更新、および `TestWorkflowDocGuardDisablesCache` 追加完了
+- [x] ステップ 1-6: 壊し確認および `make fmt`・`make test`・`make lint` 通過
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1213
+- [x] PR がマージされた
 
 ## 7. 完了基準 (Success Criteria)
 

@@ -214,6 +214,12 @@ func TestCLIIntegrationTestBuildTag(t *testing.T) {
 // change the expansion.
 func makeDryRun(t *testing.T, target string) string {
 	t.Helper()
+	// Read the Makefile from this process before running make: a file the test
+	// process opens is part of the test's cache key, so editing the Makefile
+	// alone cannot leave a cached PASS behind.
+	if _, err := os.ReadFile(filepath.Join(repositoryRoot, "Makefile")); err != nil {
+		t.Fatalf("read Makefile: %v", err)
+	}
 	makePath, err := exec.LookPath("make")
 	if err != nil {
 		t.Fatalf("make is not on PATH: %v", err)
@@ -414,6 +420,12 @@ func (s recipeStub) set(t *testing.T, name, content string) {
 // environment of PATH (the fake go first), HOME, and TMPDIR only, plus extra.
 func (s recipeStub) command(t *testing.T, extra []string, args ...string) *exec.Cmd {
 	t.Helper()
+	// Read the Makefile from this process before running make: a file the test
+	// process opens is part of the test's cache key, so editing the Makefile
+	// alone cannot leave a cached PASS behind.
+	if _, err := os.ReadFile(filepath.Join(repositoryRoot, "Makefile")); err != nil {
+		t.Fatalf("read Makefile: %v", err)
+	}
 	makePath, err := exec.LookPath("make")
 	if err != nil {
 		t.Fatalf("make is not on PATH: %v", err)

@@ -65,6 +65,12 @@ func TestMarkerReadingMatchesDecisionScript(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Read the script from this process before running bash: a file the test
+	// process opens is part of the test's cache key, so editing the script
+	// alone cannot leave a cached PASS behind.
+	if _, err := os.ReadFile(script); err != nil { //nolint:gosec // test reads the fixed repository script path
+		t.Fatalf("read %s: %v", decisionScript, err)
+	}
 	contextDoc := repoContext(t)
 	old := ParseOldValues(contextDoc)
 	const plan = "docs/tasks/0001_parity/03_implementation_plan.md"

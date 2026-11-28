@@ -1248,3 +1248,75 @@ func TestCIWorkflowCheckStepExecution(t *testing.T) {
 		}
 	})
 }
+
+// logicalShellLines strips inline `#` comments from each line of body and
+// joins lines ending with a backslash continuation.
+func logicalShellLines(body string) []string {
+	var out []string
+	var cur strings.Builder
+	for raw := range strings.Lines(body) {
+		line := strings.TrimRight(raw, "\r\n")
+		line, _, _ = strings.Cut(line, "#")
+		if trimmed, ok := strings.CutSuffix(strings.TrimRight(line, " \t"), `\`); ok {
+			cur.WriteString(trimmed)
+			cur.WriteByte(' ')
+			continue
+		}
+		cur.WriteString(line)
+		if s := strings.TrimSpace(cur.String()); s != "" {
+			out = append(out, s)
+		}
+		cur.Reset()
+	}
+	if s := strings.TrimSpace(cur.String()); s != "" {
+		out = append(out, s)
+	}
+	return out
+}
+
+// TestWorkflowDocGuardDisablesCache verifies that every `go test` invocation
+// in the doc-guard job passes -count=1 so restored Go test caches cannot be
+// reused, and that at least one such invocation exists.
+func TestWorkflowDocGuardDisablesCache(t *testing.T) {
+	wf := readWorkflow(t)
+	job := wf.jobs["doc-guard"]
+	if job == nil {
+		t.Fatalf("ci.yml is missing job %q", "doc-guard")
+	}
+
+	goTestCount := 0
+	for _, step := range job.steps {
+		if !step.hasRun {
+			continue
+		}
+		for _, line := range logicalShellLines(step.runBody) {
+			tokens := strings.Fields(line)
+			for i := 0; i+1 < len(tokens); i++ {
+				if tokens[i] != "go" || tokens[i+1] != "test" {
+					continue
+				}
+				goTestCount++
+				hasCount1 := false
+				for j := i + 2; j < len(tokens); j++ {
+					tok := tokens[j]
+					if tok == "&&" || tok == "||" || tok == ";" || tok == "|" || tok == "&" {
+						break
+					}
+					arg, hasSemi := strings.CutSuffix(tok, ";")
+					if arg == "-count=1" {
+						hasCount1 = true
+					}
+					if hasSemi {
+						break
+					}
+				}
+				if !hasCount1 {
+					t.Errorf("doc-guard step %q runs `go test` without -count=1: %q", step.name, line)
+				}
+			}
+		}
+	}
+	if goTestCount == 0 {
+		t.Fatal("doc-guard job has no `go test` command")
+	}
+}
